@@ -371,4 +371,22 @@ Petición del usuario tras arreglar `PSX-CATALOG-MISSING-1`: "¿hay algo más qu
 
 **Contraste de confianza — plataformas con catálogo presente pero match parcial** (no urgente, probablemente hacks/traducciones legítimos, mismo patrón que `DUP-CROSSFMT-9`, sin verificar caso a caso): NES 73,0% (12.126), Game Boy 73,7% (5.042), SNES 53,0% (1.290) — las tres tienen datfile No-Intro real, así que el hueco no es "falta catálogo" sino contenido que genuinamente no está en el DAT oficial (bootlegs, hacks, traducciones, homebrew) | — | 🔵 sin verificar caso a caso, baja prioridad |
 
+### REVIEW-QUEUE-PERF-1 — `/api/review-queue` tarda ≈75 s con la BD real y la UI se queda en «Cargando…» (hallazgo 2026-10-23, sin arreglar)
+
+Visto al verificar `GAMECUBE-DISC-BUG-1g` en el navegador: abrir Organizar → Revisar copias deja la sección en «Cargando…» más de un minuto (`curl /api/review-queue` = 75 s, 3 MB de JSON, 1.889 grupos en la cola). La cola se reconstruye entera en cada petición y no se cachea (`web/handlers/duplicates.py:162`, `get_review_queue` → `_build_review_queue`).
+
+Perfil real (cProfile de `_build_review_queue(repository, repo_android, config)` contra las BDs reales, solo lectura, 35 s en total sin el servidor compitiendo):
+- **22,8 s (65 %)** en `_annotate_conflicts_with_ra` (`web/builders/duplicates.py:515`, llamada desde `:1306`) → `_ra_for_path` (`:542`): abre una conexión SQLite nueva (`repository.connect()`) y hace un `SELECT md5, platform FROM games WHERE source_path = ?` **por cada ruta**: 16.958 conexiones (13,9 s de `execute`, 5,3 s de `close`, 3 s de `sqlite3.connect`).
+- **≈4,9 s** en `_is_disc_data_sibling` (`:206`, con `_is_cue_sibling_bin` `:169` y `_is_ccd_sibling_data` `:187`): 241.534 llamadas que construyen `Path` y piden `.suffix`/`.name` cada vez.
+- `build_plan` (`planner/operation_planner.py:184`) solo 1,7 s: no es el problema.
+
+Hipótesis sin comprobar: el servidor HTTP atiende la petición en su hilo, así que mientras corre la cola otras peticiones (p. ej. otro `curl`) esperan; el primer `curl` de la sesión agotó 100 s con el precalentado de índices en marcha.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| REVIEW-QUEUE-PERF-1a | Precargar en **una sola consulta** `{source_path: (md5, platform)}` por repo (o con `IN` por lotes) y que `_ra_for_path` busque en ese dict en vez de abrir una conexión por ruta. Debe bajar ≈20 s de 35 sin cambiar el resultado: test que compare la salida de `_annotate_conflicts_with_ra` antes/después con un repo sintético | `web/builders/duplicates.py:542` | ⬜ **prioridad media** (UX, no pérdida de datos) |
+| REVIEW-QUEUE-PERF-1b | Evitar los `Path(...)` repetidos en `_is_disc_data_sibling`/`_is_cue_sibling_bin`/`_is_ccd_sibling_data` (precomputar sufijo y nombre una vez por archivo, o `str.rpartition`). ≈5 s | `web/builders/duplicates.py:169-206` | ⬜ |
+| REVIEW-QUEUE-PERF-1c | Decidir si la cola debe cachearse entre peticiones (invalidando al escanear/aplicar/excluir) o paginarse en servidor (3 MB y ≈790.000 caracteres de DOM; `find`/`read_page` de la extensión de Chrome ya no pueden con esa página). Medir primero tras 1a/1b | `web/handlers/duplicates.py:162`, `web/static/js/tabs/review_copies.js:60` | ⬜ decisión de diseño pendiente tras 1a/1b |
+| REVIEW-QUEUE-PERF-1d | Medir cuánto tarda de verdad con el servidor sin competencia y comprobar si la petición bloquea al resto (probar `/api/job-status` mientras corre la cola); si bloquea, mover el cálculo a un job en background con el patrón `_job_lock`/`/api/job-status` | `web/handlers/duplicates.py`, `web/jobs/manager.py` | ⬜ |
+
 ---
