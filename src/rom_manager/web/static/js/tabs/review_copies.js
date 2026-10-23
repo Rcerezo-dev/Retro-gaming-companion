@@ -7,6 +7,11 @@ import { showToast } from '../components/toast.js';
 import { _showConfirm } from '../components/modal.js';
 
 let _reviewGroups = [];
+// REVIEW-QUEUE-PERF-1c: con 1.889 grupos el DOM pesaba ~790.000 caracteres y
+// tardaba ~9 s en pintarse; se pintan por tandas (la cola ya viene ordenada por
+// espacio recuperable, así que lo más útil sale primero).
+const _REVIEW_PAGE_SIZE = 50;
+let _reviewShown = _REVIEW_PAGE_SIZE;
 
 // Mismo texto en todas las confirmaciones de esta pantalla (TABS-FIX-4): nunca
 // "no se puede deshacer" — el archivo va a _descartados/, recuperable 30 días.
@@ -83,8 +88,19 @@ function _renderReviewQueue(groups, wastedBytes) {
     return;
   }
   let html = `<p style="color:var(--c-muted);margin-bottom:12px">${groups.length} grupo${groups.length !== 1 ? 's' : ''} — ~${window.fmtSize(wastedBytes)} recuperables</p>`;
-  html += groups.map(_renderReviewGroup).join('');
+  html += groups.slice(0, _reviewShown).map(_renderReviewGroup).join('');
+  const remaining = groups.length - _reviewShown;
+  if (remaining > 0) {
+    html += `<button class="btn" id="btn-review-show-more" style="margin:8px 0 16px">Mostrar ${Math.min(_REVIEW_PAGE_SIZE, remaining)} más (quedan ${remaining})</button>`;
+  }
   el.innerHTML = html;
+  const more = document.getElementById('btn-review-show-more');
+  if (more) {
+    more.addEventListener('click', () => {
+      _reviewShown += _REVIEW_PAGE_SIZE;
+      _renderReviewQueue(groups, wastedBytes);
+    });
+  }
 }
 
 function _renderReviewGroup(g) {
