@@ -938,7 +938,7 @@ Intentando refrescar `library_android.db` solo con `ROMs/psx` (`POST /api/adb-sc
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| ANDROID-SCAN-FIX-1a | No podar si el escaneo se canceló o falló antes de listar (saltar `prune_stale_entries` cuando `_cancel.is_set()`) | `web/handlers/scan.py:597` | ⬜ **prioridad alta** (pérdida de filas de BD) |
+| ANDROID-SCAN-FIX-1a | No podar si el escaneo se canceló o falló antes de listar (saltar `prune_stale_entries` cuando `_cancel.is_set()`) | `web/handlers/scan.py:597` | ✅ 2026-10-23: `pruned = 0` si `_cancel.is_set()`; test `test_cancelled_adb_scan_does_not_prune_unseen_rows` (falla sin el fix). El fallo antes de listar ya no podaba: `ls_recursive` lanza y cae en el `except` |
 | ANDROID-SCAN-FIX-1b | Hash incremental: reutilizar sha1/md5 de la BD si tamaño+mtime no cambian; escribir filas por lotes durante el hash en vez de al final; timeout proporcional al tamaño o por subcarpeta | `web/handlers/scan.py:469-471`, `sync/adb_transport.py::_hash_recursive` | ⬜ |
 | ANDROID-SCAN-FIX-1c | Comparar mtime con tolerancia de 1 s en `direction=newest` para no re-subir ficheros idénticos | `web/cable_sync_daemon.py`, `sync/` | ⬜ |
 | ANDROID-SCAN-FIX-1d | Refresco de `rawsha1` de CHD independiente de `compute_hashes` | `web/handlers/scan.py` | ⬜ |

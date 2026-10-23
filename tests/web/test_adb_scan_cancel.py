@@ -106,3 +106,46 @@ def test_stop_job_cancels_adb_scan_in_progress(monkeypatch, repo_android, config
 
     _, total = repo_android.get_games_paginated(file_type=None)
     assert total < total_files
+
+
+def test_cancelled_adb_scan_does_not_prune_unseen_rows(monkeypatch, repo_android, config):
+    """ANDROID-SCAN-FIX-1a: cancelling a rescan must not delete the rows it never reached."""
+    total_files = 10
+    _FakeAdbTransport.files = [
+        AdbFileInfo(android_path=f"/storage/emulated/0/roms/game{i}.gba", size=100, mtime=0.0)
+        for i in range(total_files)
+    ]
+    monkeypatch.setattr("rom_manager.sync.adb_transport.AdbTransport", _FakeAdbTransport)
+    job_manager = JobManager()
+    args = {"adb_serial": "emulator-5554", "android_path": "/storage/emulated/0"}
+
+    def _run_scan() -> dict:
+        _do_adb_scan(_FakeCtx(), args, config, repo_android, job_manager)
+        for _ in range(50):
+            if not job_manager.get_status()["scan_running"]:
+                break
+            time.sleep(0.1)
+        else:
+            pytest.fail("adb scan job never finished")
+        return job_manager.get_status()["scan_result"]
+
+    assert _run_scan()["pruned"] == 0
+    assert repo_android.get_games_paginated(file_type=None)[1] == total_files
+
+    real_detect_platform = __import__(
+        "rom_manager.detection.platform_detector", fromlist=["detect_platform"]
+    ).detect_platform
+    calls = {"n": 0}
+
+    def _cancel_partway(fake_path):
+        calls["n"] += 1
+        if calls["n"] == 3:
+            job_manager.cancel("scan")
+        return real_detect_platform(fake_path)
+
+    monkeypatch.setattr("rom_manager.detection.platform_detector.detect_platform", _cancel_partway)
+    result = _run_scan()
+
+    assert result["cancelled"] is True
+    assert result["pruned"] == 0
+    assert repo_android.get_games_paginated(file_type=None)[1] == total_files

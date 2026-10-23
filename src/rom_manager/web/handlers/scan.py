@@ -594,7 +594,13 @@ def _do_adb_scan(
                         errors += 1
                         logger.error("ADB scan error for %s: %s", ap, exc)
 
-            pruned = repo_android.prune_stale_entries(android_path, seen_paths)
+            # ANDROID-SCAN-FIX-1a: a cancelled scan only saw part of the tree,
+            # so pruning against seen_paths would delete every unseen row.
+            pruned = (
+                0
+                if _cancel.is_set()
+                else repo_android.prune_stale_entries(android_path, seen_paths)
+            )
             finished_at = utc_now()
             repo_android.complete_scan_run(
                 scan_run_id,
