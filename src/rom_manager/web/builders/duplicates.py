@@ -539,20 +539,32 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
     cache_dir = _Path(config.project_root) / ".rommgr" / "ra_cache"
     _hash_lib_cache: dict[str, dict[str, int]] = {}
 
+    # REVIEW-QUEUE-PERF-1a: one batched lookup instead of one SQLite connection per
+    # path (16.958 connections = 65 % of the review queue's build time).
+    wanted = {str(op.source_path) for op in conflict_ops} | {
+        str(op.target_path) for op in conflict_ops if op.conflict_reason == "disk"
+    }
+    md5_plat: dict[str, tuple[str, str]] = {}
+    try:
+        paths = list(wanted)
+        with repository.connect() as _c:
+            for i in range(0, len(paths), 500):  # SQLite's default variable limit is 999
+                chunk = paths[i : i + 500]
+                marks = ",".join("?" * len(chunk))
+                for row in _c.execute(
+                    f"SELECT source_path, md5, platform FROM games WHERE source_path IN ({marks})",
+                    chunk,
+                ):
+                    md5_plat[row["source_path"]] = (
+                        (row["md5"] or "").lower(),
+                        row["platform"] or "",
+                    )
+    except Exception:
+        _logger.debug("Consulta RA por rutas falló", exc_info=True)
+
     def _ra_for_path(path: _Path) -> int:
         """Return achievement count (-1 = no data)."""
-        try:
-            with repository.connect() as _c:
-                row = _c.execute(
-                    "SELECT md5, platform FROM games WHERE source_path = ?", (str(path),)
-                ).fetchone()
-            if not row:
-                return -1
-            md5 = (row["md5"] or "").lower()
-            plat = row["platform"] or ""
-        except Exception:
-            _logger.debug("Consulta RA por ruta falló: %s", path, exc_info=True)
-            return -1
+        md5, plat = md5_plat.get(str(path), ("", ""))
         if not md5:
             return -1
         return _load_ra_hash_map(cache_dir, plat, _hash_lib_cache).get(md5, -1)
