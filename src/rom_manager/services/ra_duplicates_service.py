@@ -26,7 +26,7 @@ from rom_manager.renamer.file_renamer import _collect_companions, _companion_rem
 from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 from rom_manager.sync.chd_header import read_chd_raw_sha1
 from rom_manager.utils.paths import is_device_path
-from rom_manager.utils.trash import discard_to_trash
+from rom_manager.utils.trash import TRASH_DIR_NAME, discard_to_trash
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -812,15 +812,29 @@ def plan_cluster_duplicates(group: dict) -> list[tuple[dict, list[dict]]]:
     Only clusters of 2+ entries with a verified identical content id produce
     anything; entries with distinct or unverifiable content are never listed.
     Arcade and multi-disc-risk platforms (a different disc is not a duplicate)
-    yield nothing. Entries arrive recommended-first, which decides the keeper.
+    yield nothing, and so do groups with no platform (BIOS/utility files).
+    Entries in backup/trash folders and known BIOS names are never touched
+    (DUP-CROSSFMT-11d). Entries arrive recommended-first, which decides the keeper.
     """
+    from rom_manager.detection.platform_detector import bios_definitions
     from rom_manager.planner.operation_planner import _MULTI_DISC_RISK_PLATFORMS
 
     platform = group.get("platform") or ""
-    if platform in _ARCADE_PLATFORMS or platform.lower() in _MULTI_DISC_RISK_PLATFORMS:
+    if (
+        platform.lower() in ("", "unknown")
+        or platform in _ARCADE_PLATFORMS
+        or platform.lower() in _MULTI_DISC_RISK_PLATFORMS
+    ):
         return []
+    bios_names = {b["filename"].lower() for b in bios_definitions()}
     clusters: dict[str, list[dict]] = defaultdict(list)
     for entry in group.get("entries", []):
+        path = Path(entry["source_path"])
+        in_protected_dir = any(
+            part.lower().startswith("_backup") or part == TRASH_DIR_NAME for part in path.parts[:-1]
+        )
+        if in_protected_dir or path.name.lower() in bios_names:
+            continue
         cid = content_id(entry)
         if isinstance(cid, str):
             clusters[cid].append(entry)
