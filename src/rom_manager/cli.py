@@ -516,6 +516,9 @@ def _resolve_duplicates_by_content(
     save_exts = frozenset(config.save_extensions)
     extra_dirs = central_save_dirs(config)
     total = sum(len(losers) for g in groups for _, losers in plan_cluster_duplicates(g))
+    discarded = frozenset(
+        Path(e["source_path"]) for g in groups for _, ls in plan_cluster_duplicates(g) for e in ls
+    )
     print(f"Grupos con copias idénticas: {len(groups)}  ({total} archivos descartables)")
     if not apply:
         print("DRY RUN - no files will be changed. Pass --apply to resolve.\n")
@@ -527,7 +530,11 @@ def _resolve_duplicates_by_content(
                 )
                 for e in losers:
                     moves, conflicts = _save_moves(
-                        Path(keep["source_path"]), Path(e["source_path"]), save_exts, extra_dirs
+                        Path(keep["source_path"]),
+                        Path(e["source_path"]),
+                        save_exts,
+                        extra_dirs,
+                        discarded,
                     )
                     for sav, dest in moves:
                         print(f"      save: {sav.name}  ->  {dest.name}")

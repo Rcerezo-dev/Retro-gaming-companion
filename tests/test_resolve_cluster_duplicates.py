@@ -129,3 +129,23 @@ def test_identical_save_at_destination_is_not_a_conflict(tmp_path: Path) -> None
     assert result["resolved"] == 1 and not result["errors"]
     assert not (tmp_path / "nbajam.srm").exists()
     assert (tmp_path / "Game (USA).srm").read_bytes() == b"same"
+
+
+def test_save_stays_with_surviving_same_name_rom(tmp_path: Path) -> None:
+    """Incidente 2026-10-26: el .zip descartado compartía nombre con otro .nds (otro dump)
+    que se quedaba; su save no debe irse al nombre del keeper."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    keep = _entry(repo, tmp_path / "Game (USA) (conflicto).nes", "A" * 40, recommended=True)
+    dupe = _entry(repo, tmp_path / "Game (USA).bin", "A" * 40)
+    (tmp_path / "Game (USA).nes").write_bytes(b"other dump")  # sobrevive, mismo stem
+    (tmp_path / "Game (USA).srm").write_bytes(b"progress")
+
+    result = resolve_cluster_duplicates(
+        lambda _p: repo,
+        [{"platform": "NES", "entries": [keep, dupe]}],
+        save_extensions=_SAVE_EXTS,
+    )
+
+    assert result["resolved"] == 1 and result["saves_carried"] == 0
+    assert (tmp_path / "Game (USA).srm").read_bytes() == b"progress"
+    assert not (tmp_path / "Game (USA) (conflicto).srm").exists()

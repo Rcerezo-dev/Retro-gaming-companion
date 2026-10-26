@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 
 from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
 from rom_manager.detection.filename_normalizer import is_non_canonical_variant
-from rom_manager.renamer.file_renamer import _collect_companions
+from rom_manager.renamer.file_renamer import _collect_companions, _companion_remainder
 from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 from rom_manager.sync.chd_header import read_chd_raw_sha1
 from rom_manager.utils.paths import is_device_path
@@ -838,14 +838,30 @@ def _save_moves(
     loser: Path,
     save_extensions: frozenset[str],
     extra_dirs: Iterable[Path] = (),
+    discarded: frozenset[Path] = frozenset(),
 ) -> tuple[list[tuple[Path, Path]], list[str]]:
     """DUP-CROSSFMT-11: ``([(save, destino)], conflictos)`` para llevar los saves de
     *loser* al nombre de *keep*.
 
-    Mismo stem: nada que mover (el save ya vale para el que se queda). Un destino
-    ya ocupado es un conflicto: ante duda no se sobreescribe nada.
+    Mismo stem: nada que mover (el save ya vale para el que se queda). Si otro
+    archivo con el stem de *loser* sobrevive (otro dump, no está en *discarded*),
+    el save sigue siendo suyo: tampoco se mueve. Un destino ya ocupado es un
+    conflicto: ante duda no se sobreescribe nada.
     """
     if loser.stem == keep.stem:
+        return [], []
+    try:
+        siblings = list(loser.parent.iterdir())
+    except OSError:
+        siblings = []
+    if any(
+        f != loser
+        and f.stem == loser.stem
+        and f.suffix.lower() not in save_extensions
+        and f not in discarded
+        and _companion_remainder(f.name, loser.stem, save_extensions) is None
+        for f in siblings
+    ):
         return [], []
     moves: list[tuple[Path, Path]] = []
     conflicts: list[str] = []
@@ -901,6 +917,9 @@ def resolve_cluster_duplicates(
     resolved = 0
     carried = 0
     errors: list[str] = []
+    discarded = frozenset(
+        Path(e["source_path"]) for g in groups for _, ls in plan_cluster_duplicates(g) for e in ls
+    )
     for group in groups:
         for keep, losers in plan_cluster_duplicates(group):
             keep_path = keep["source_path"]
@@ -913,7 +932,7 @@ def resolve_cluster_duplicates(
                 if not Path(keep_path).exists():
                     continue  # resolve_duplicate_ra reporta el keeper ausente
                 moves, conflicts = _save_moves(
-                    Path(keep_path), Path(lp), save_extensions, extra_save_dirs
+                    Path(keep_path), Path(lp), save_extensions, extra_save_dirs, discarded
                 )
                 err = f"{Path(lp).name}: " + "; ".join(conflicts) if conflicts else None
                 err = err or (_carry_saves(moves, backup_root) if moves else None)
