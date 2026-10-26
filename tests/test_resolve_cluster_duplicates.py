@@ -72,3 +72,42 @@ def test_missing_keeper_discards_nothing(tmp_path: Path) -> None:
     )
 
     assert result["resolved"] == 0 and Path(dupe["source_path"]).exists()
+
+
+_SAVE_EXTS = frozenset({".srm", ".sav"})
+
+
+def test_loser_save_is_renamed_to_keeper(tmp_path: Path) -> None:
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    keep = _entry(repo, tmp_path / "Game (USA).nes", "A" * 40, recommended=True)
+    dupe = _entry(repo, tmp_path / "nbajam.nes", "A" * 40)
+    (tmp_path / "nbajam.srm").write_bytes(b"progress")
+
+    result = resolve_cluster_duplicates(
+        lambda _p: repo,
+        [{"platform": "NES", "entries": [keep, dupe]}],
+        save_extensions=_SAVE_EXTS,
+    )
+
+    assert result["resolved"] == 1 and result["saves_carried"] == 1
+    assert (tmp_path / "Game (USA).srm").read_bytes() == b"progress"
+    assert not (tmp_path / "nbajam.srm").exists()
+
+
+def test_save_name_clash_keeps_loser_and_overwrites_nothing(tmp_path: Path) -> None:
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    keep = _entry(repo, tmp_path / "Game (USA).nes", "A" * 40, recommended=True)
+    dupe = _entry(repo, tmp_path / "nbajam.nes", "A" * 40)
+    (tmp_path / "nbajam.srm").write_bytes(b"old")
+    (tmp_path / "Game (USA).srm").write_bytes(b"new")
+
+    result = resolve_cluster_duplicates(
+        lambda _p: repo,
+        [{"platform": "NES", "entries": [keep, dupe]}],
+        save_extensions=_SAVE_EXTS,
+    )
+
+    assert result["resolved"] == 0 and result["errors"]
+    assert Path(dupe["source_path"]).exists()
+    assert (tmp_path / "nbajam.srm").read_bytes() == b"old"
+    assert (tmp_path / "Game (USA).srm").read_bytes() == b"new"

@@ -16,11 +16,13 @@ import subprocess
 import tempfile
 import zipfile
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
 from rom_manager.detection.filename_normalizer import is_non_canonical_variant
+from rom_manager.renamer.file_renamer import _collect_companions
 from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 from rom_manager.sync.chd_header import read_chd_raw_sha1
 from rom_manager.utils.paths import is_device_path
@@ -831,26 +833,95 @@ def plan_cluster_duplicates(group: dict) -> list[tuple[dict, list[dict]]]:
     return plan
 
 
+def _save_moves(
+    keep: Path,
+    loser: Path,
+    save_extensions: frozenset[str],
+    extra_dirs: Iterable[Path] = (),
+) -> tuple[list[tuple[Path, Path]], list[str]]:
+    """DUP-CROSSFMT-11: ``([(save, destino)], conflictos)`` para llevar los saves de
+    *loser* al nombre de *keep*.
+
+    Mismo stem: nada que mover (el save ya vale para el que se queda). Un destino
+    ya ocupado es un conflicto: ante duda no se sobreescribe nada.
+    """
+    if loser.stem == keep.stem:
+        return [], []
+    moves: list[tuple[Path, Path]] = []
+    conflicts: list[str] = []
+    for sav, rest in _collect_companions(loser, loser.stem, save_extensions, extra_dirs):
+        dest_dir = keep.parent if sav.parent == loser.parent else sav.parent
+        dest = dest_dir / (keep.stem + rest)
+        if dest.exists():
+            conflicts.append(f"{sav.name}: ya existe {dest.name}")
+        else:
+            moves.append((sav, dest))
+    return moves, conflicts
+
+
+def _carry_saves(moves: list[tuple[Path, Path]], backup_root: Path | None) -> str | None:
+    """Mueve los saves planificados (con backup previo); deshace todo si uno falla."""
+    done: list[tuple[Path, Path]] = []
+    try:
+        for sav, dest in moves:
+            if backup_root:
+                from rom_manager.backup.save_backup import backup_save
+
+                backup_save(sav, backup_root)
+            shutil.move(str(sav), str(dest))
+            done.append((dest, sav))
+    except OSError as exc:
+        for dest, sav in done:
+            shutil.move(str(dest), str(sav))
+        return str(exc)
+    return None
+
+
 def resolve_cluster_duplicates(
     get_repo_fn: Callable[[str], LibraryRepository],
     groups: list[dict],
     adb_transport: AdbTransport | None = None,
+    *,
+    save_extensions: frozenset[str] = frozenset(),
+    extra_save_dirs: Iterable[Path] = (),
+    backup_root: Path | None = None,
 ) -> dict:
     """DUP-CROSSFMT-11: discard byte-identical copies, one keeper per content cluster.
 
     Unlike ``resolve_duplicate_ra`` (discards everything but the recommended
     entry), different regions/dumps/hacks in the same group are left alone.
+    The saves of every discarded copy are renamed to the keeper's name first; a
+    copy whose saves cannot be carried over (name clash) is not discarded.
     """
     resolved = 0
+    carried = 0
     errors: list[str] = []
     for group in groups:
         for keep, losers in plan_cluster_duplicates(group):
+            keep_path = keep["source_path"]
+            to_discard: list[str] = []
+            for loser in losers:
+                lp = loser["source_path"]
+                if is_device_path(keep_path) or is_device_path(lp):
+                    to_discard.append(lp)  # saves del dispositivo: fuera de alcance
+                    continue
+                if not Path(keep_path).exists():
+                    continue  # resolve_duplicate_ra reporta el keeper ausente
+                moves, conflicts = _save_moves(
+                    Path(keep_path), Path(lp), save_extensions, extra_save_dirs
+                )
+                err = f"{Path(lp).name}: " + "; ".join(conflicts) if conflicts else None
+                err = err or (_carry_saves(moves, backup_root) if moves else None)
+                if err:
+                    errors.append(f"{Path(lp).name} no descartado, saves sin mover — {err}")
+                    continue
+                carried += len(moves)
+                to_discard.append(lp)
+            if not to_discard:
+                continue
             result = resolve_duplicate_ra(
-                get_repo_fn(keep["source_path"]),
-                keep["source_path"],
-                [e["source_path"] for e in losers],
-                adb_transport,
+                get_repo_fn(keep_path), keep_path, to_discard, adb_transport
             )
             resolved += result.get("discarded", 0)
             errors.extend(result.get("errors", []))
-    return {"resolved": resolved, "errors": errors[:20]}
+    return {"resolved": resolved, "saves_carried": carried, "errors": errors[:20]}
