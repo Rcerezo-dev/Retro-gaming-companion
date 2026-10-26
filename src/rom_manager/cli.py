@@ -183,9 +183,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the chdman binary (overrides config.toml [tools] chdman).",
     )
 
-    subparsers.add_parser(
+    fix_platforms_parser = subparsers.add_parser(
         "fix-platforms",
         help="Backfill missing platform data by inferring it from folder names (no re-hash needed).",
+    )
+    fix_platforms_parser.add_argument(
+        "--mismatched",
+        action="store_true",
+        help=(
+            "DUP-CROSSFMT-11c: instead of filling NULL platforms, fix rows whose platform "
+            "contradicts an unambiguous extension (dry run unless --apply)."
+        ),
+    )
+    fix_platforms_parser.add_argument(
+        "--apply", action="store_true", help="With --mismatched: write the fixes (backup first)."
     )
 
     scrape_parser = subparsers.add_parser(
@@ -1035,7 +1046,22 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "fix-platforms":
-        from rom_manager.detection.platform_detector import detect_platform
+        from rom_manager.detection.platform_detector import PLATFORM_BY_EXTENSION, detect_platform
+
+        if args.mismatched:
+            # DUP-CROSSFMT-11c: dry run unless --apply; backup antes de escribir.
+            if args.apply:
+                repository.backup_database()
+            changes = repository.fix_platform_mismatches(
+                detect_platform, PLATFORM_BY_EXTENSION, dry_run=not args.apply
+            )
+            for source_path, old, new in changes:
+                print(f"  {Path(source_path).name}: {old} -> {new}")
+            verb = "Corregidas" if args.apply else "Se corregirían"
+            print(f"{verb}: {len(changes)} filas")
+            if not args.apply:
+                print("DRY RUN - nothing written. Pass --apply to fix.")
+            return 0
 
         print("Detecting platforms from folder names…")
         updated = repository.backfill_platforms(detect_platform)
