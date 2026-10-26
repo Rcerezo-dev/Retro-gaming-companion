@@ -433,6 +433,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="With --by-content: only these platforms (e.g. NES 'Game Gear' 'Game Boy').",
     )
     resolve_dup_parser.add_argument(
+        "--by-variant",
+        action="store_true",
+        help=(
+            "DUP-VARIANT: discard Beta/Proto/Demo/Sample when a final exists and older "
+            "(Rev N) copies, and keeps one region (World > Europe > USA > Japan); hacks and translations are kept. Like --by-content."
+        ),
+    )
+    resolve_dup_parser.add_argument(
         "--by-content",
         action="store_true",
         help=(
@@ -519,16 +527,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _resolve_duplicates_by_content(
-    queue, repository, repository_android, config, apply, platforms=None
+    queue, repository, repository_android, config, apply, platforms=None, by_variant=False
 ) -> int:
     """DUP-CROSSFMT-11: ``resolve-duplicates --by-content`` (dry run unless *apply*)."""
     from rom_manager.renamer.file_renamer import central_save_dirs
     from rom_manager.services.ra_duplicates_service import (
         _save_moves,
         plan_cluster_duplicates,
+        plan_variant_duplicates,
         resolve_cluster_duplicates,
     )
     from rom_manager.web.builders.common import _repo_for_path
+
+    plan_cluster_duplicates = plan_variant_duplicates if by_variant else plan_cluster_duplicates
 
     wanted = {p.lower() for p in platforms or ()}
     groups = [
@@ -574,6 +585,8 @@ def _resolve_duplicates_by_content(
         save_extensions=save_exts,
         extra_save_dirs=extra_dirs,
         backup_root=config.data_dir if config.backup.saves_enabled else None,
+        planner=plan_cluster_duplicates,
+        carry_saves=not by_variant,
     )
     print(f"Resueltos: {result['resolved']}  (saves renombrados: {result['saves_carried']})")
     for err in result["errors"]:
@@ -1720,9 +1733,15 @@ def main(argv: list[str] | None = None) -> int:
         _ARCADE_PLATFORMS = {"MAME", "FBNeo", "Arcade"}
 
         queue = _build_review_queue(repository, repository_android, config)
-        if args.by_content:
+        if args.by_content or args.by_variant:
             return _resolve_duplicates_by_content(
-                queue, repository, repository_android, config, args.apply, args.platforms
+                queue,
+                repository,
+                repository_android,
+                config,
+                args.apply,
+                args.platforms,
+                args.by_variant,
             )
         arcade_groups = [g for g in queue["groups"] if g.get("platform") in _ARCADE_PLATFORMS]
         console_groups = [g for g in queue["groups"] if g.get("platform") not in _ARCADE_PLATFORMS]
