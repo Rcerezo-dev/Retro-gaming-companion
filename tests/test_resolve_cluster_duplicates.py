@@ -149,3 +149,38 @@ def test_save_stays_with_surviving_same_name_rom(tmp_path: Path) -> None:
     assert result["resolved"] == 1 and result["saves_carried"] == 0
     assert (tmp_path / "Game (USA).srm").read_bytes() == b"progress"
     assert not (tmp_path / "Game (USA) (conflicto).srm").exists()
+
+
+def _e(path: str, sha1: str = "A" * 40, recommended: bool = False) -> dict:
+    return {
+        "source_path": path,
+        "filename": Path(path).name,
+        "sha1": sha1,
+        "recommended": recommended,
+    }
+
+
+def test_groups_without_platform_are_never_planned() -> None:
+    """DUP-CROSSFMT-11d: BIOS/utilidades (plataforma NULL) no son duplicados de ROM."""
+    entries = [_e("E:/x/drastic_bios_arm7.bin", recommended=True), _e("E:/y/drastic_bios_arm7.bin")]
+    assert plan_cluster_duplicates({"platform": "unknown", "entries": entries}) == []
+    assert plan_cluster_duplicates({"platform": None, "entries": entries}) == []
+
+
+def test_backup_trash_and_known_bios_entries_are_ignored() -> None:
+    real = _e("E:/ROMS/nes/Game.nes", recommended=True)
+    in_backup = _e("E:/ROMS/_backup_android_cleanup/nes/Game.nes")
+    in_trash = _e("E:/ROMS/nes/_descartados/Game.nes")
+    assert (
+        plan_cluster_duplicates({"platform": "NES", "entries": [real, in_backup, in_trash]}) == []
+    )
+
+    # un duplicado normal sigue funcionando junto a esas entradas protegidas
+    twin = _e("E:/ROMS/nes/Game copy.nes")
+    plan = plan_cluster_duplicates({"platform": "NES", "entries": [real, twin, in_backup]})
+    assert [(k["source_path"], [d["source_path"] for d in ls]) for k, ls in plan] == [
+        (real["source_path"], [twin["source_path"]])
+    ]
+
+    bios_a, bios_b = _e("E:/a/scph1001.bin", recommended=True), _e("E:/b/scph1001.bin")
+    assert plan_cluster_duplicates({"platform": "NES", "entries": [bios_a, bios_b]}) == []
