@@ -48,9 +48,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Export the list to a CSV file instead of printing to stdout.",
     )
 
-    subparsers.add_parser(
+    match_parser = subparsers.add_parser(
         "match",
         help="Match unresolved ROMs against No-Intro and Redump catalogs.",
+    )
+    match_parser.add_argument(
+        "--include-low",
+        action="store_true",
+        help=(
+            "MATCH-STALE-LOW-1: also re-evaluate rows already matched with 'low' confidence; "
+            "those the current matcher no longer matches are reset to unmatched."
+        ),
+    )
+    match_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Only count what would change (cleared / re-titled / unchanged); write nothing.",
     )
 
     plan_parser = subparsers.add_parser(
@@ -820,6 +833,7 @@ def main(argv: list[str] | None = None) -> int:
         matcher = CatalogMatcher(
             nointro_dir=config.catalogs_nointro_dir,
             redump_dir=config.catalogs_redump_dir,
+            arcade_dir=config.catalogs_arcade_dir,
             chdman_path=config.chdman,
         )
         print("Loading catalogs…", flush=True)
@@ -829,7 +843,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  No-Intro: {nointro_count:,} entries")
         print(f"  Redump:   {redump_count:,} entries")
 
-        games = repository.get_unresolved_games()
+        games = repository.get_unresolved_games(include_low_confidence=args.include_low)
         if not games:
             print("No unresolved games to match.")
             return 0
@@ -839,15 +853,43 @@ def main(argv: list[str] | None = None) -> int:
         matched_medium = 0
         matched_low = 0
         unmatched = 0
+        unchanged = retitled = newly_matched = still_unmatched = 0
+        old_titles: dict[str, str | None] = {}
+        if args.dry_run:
+            with repository.connect() as c:
+                old_titles = {
+                    r[0]: r[1]
+                    for r in c.execute(
+                        "SELECT source_path, canonical_title FROM games"
+                        " WHERE match_confidence = 'low'"
+                    )
+                }
+        elif args.include_low:
+            repository.backup_database()
         with repository.batch() as conn:
             for game in games:
                 result = matcher.match(game.sha1, game.original_filename, game.source_path)
+                if args.dry_run:
+                    # Solo cuenta: sin escribir. Las filas 'low' (en old_titles) se
+                    # separan de las que ya estaban sin match.
+                    was_low = game.source_path in old_titles
+                    if result is None:
+                        unmatched += 1 if was_low else 0
+                        still_unmatched += 0 if was_low else 1
+                    elif not was_low:
+                        newly_matched += 1
+                    elif result.title == old_titles[game.source_path]:
+                        unchanged += 1
+                    else:
+                        retitled += 1
+                    continue
                 if result is not None:
                     repository.update_match(
                         game.source_path,
                         canonical_title=result.title,
                         match_confidence=result.confidence,
                         catalog_source=result.catalog_source,
+                        platform=result.platform,
                         connection=conn,
                     )
                     if result.confidence == "high":
@@ -863,6 +905,14 @@ def main(argv: list[str] | None = None) -> int:
                     repository.clear_match(game.source_path, connection=conn)
                     unmatched += 1
 
+        if args.dry_run:
+            print("\nDRY RUN - nothing written.")
+            print(f"Filas 'low' que pasarían a sin match: {unmatched}")
+            print(f"Filas 'low' que cambiarían de título: {retitled}")
+            print(f"Filas 'low' que quedarían igual:      {unchanged}")
+            print(f"Sin match previo que ahora casarían:  {newly_matched}")
+            print(f"Sin match previo que seguirían igual: {still_unmatched}")
+            return 0
         print(f"\nMatched (SHA1):   {matched_high}")
         print(
             f"Matched (nombre): {matched_medium + matched_low}"
