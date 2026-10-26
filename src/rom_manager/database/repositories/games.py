@@ -394,6 +394,46 @@ class GamesMixin:
                     updated += 1
         return updated
 
+    def fix_platform_mismatches(
+        self,
+        detect_fn,
+        by_extension: dict[str, str],
+        *,
+        dry_run: bool = True,
+    ) -> list[tuple[str, str, str]]:
+        """DUP-CROSSFMT-11c: corrige filas cuya plataforma contradice su extensión.
+
+        Una fila con plataforma obsoleta (el matcher antiguo la escribía con
+        ``update_match(platform=...)``, ``clear_match`` no la toca y el escaneo salta
+        los archivos sin cambios) queda mal para siempre. Solo se corrige si la
+        extensión es inequívoca (*by_extension*) Y *detect_fn* de hoy da esa misma
+        plataforma: una extensión ambigua o una detección que discrepa no se toca.
+
+        Devuelve ``[(source_path, plataforma_antigua, plataforma_nueva)]``; con
+        ``dry_run=False`` además escribe los cambios.
+        """
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT source_path, platform FROM games"
+                " WHERE file_type = 'rom' AND platform IS NOT NULL"
+            ).fetchall()
+
+        changes: list[tuple[str, str, str]] = []
+        for source_path, platform in rows:
+            path = Path(source_path)
+            wanted = by_extension.get(path.suffix.lower())
+            if wanted and wanted != platform and detect_fn(path) == wanted:
+                changes.append((source_path, platform, wanted))
+
+        if changes and not dry_run:
+            with self.batch() as conn:
+                for source_path, _old, new in changes:
+                    conn.execute(
+                        "UPDATE games SET platform = ? WHERE source_path = ?",
+                        (new, source_path),
+                    )
+        return changes
+
     def prune_stale_entries(self, source_root: str, seen_paths: set[str]) -> int:
         """Delete records for files that were under *source_root* but are no longer on disk.
 

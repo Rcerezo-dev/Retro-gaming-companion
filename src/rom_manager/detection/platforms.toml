@@ -20,7 +20,6 @@
 ".z64"   = "Nintendo 64"
 ".v64"   = "Nintendo 64"
 ".ndd"   = "Nintendo 64DD"
-".u1"    = "Nintendo 64DD"
 ".gb"    = "Game Boy"
 ".gbc"   = "Game Boy Color"
 ".sgb"   = "Game Boy Color"
@@ -142,7 +141,7 @@
 extensions = [
   ".md", ".bin", ".cue", ".iso", ".zip", ".chd", ".img",
   ".ecm", ".mdf", ".mds", ".ccd", ".sub", ".7z", ".rom",
-  ".dsk", ".nrg",
+  ".dsk", ".nrg", ".u1",
 ]
 
 [folders]
