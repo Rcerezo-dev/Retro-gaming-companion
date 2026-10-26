@@ -111,3 +111,21 @@ def test_save_name_clash_keeps_loser_and_overwrites_nothing(tmp_path: Path) -> N
     assert Path(dupe["source_path"]).exists()
     assert (tmp_path / "nbajam.srm").read_bytes() == b"old"
     assert (tmp_path / "Game (USA).srm").read_bytes() == b"new"
+
+
+def test_identical_save_at_destination_is_not_a_conflict(tmp_path: Path) -> None:
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    keep = _entry(repo, tmp_path / "Game (USA).nes", "A" * 40, recommended=True)
+    dupe = _entry(repo, tmp_path / "nbajam.nes", "A" * 40)
+    (tmp_path / "nbajam.srm").write_bytes(b"same")
+    (tmp_path / "Game (USA).srm").write_bytes(b"same")
+
+    result = resolve_cluster_duplicates(
+        lambda _p: repo,
+        [{"platform": "NES", "entries": [keep, dupe]}],
+        save_extensions=_SAVE_EXTS,
+    )
+
+    assert result["resolved"] == 1 and not result["errors"]
+    assert not (tmp_path / "nbajam.srm").exists()
+    assert (tmp_path / "Game (USA).srm").read_bytes() == b"same"

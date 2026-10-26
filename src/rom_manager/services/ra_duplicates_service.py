@@ -852,8 +852,10 @@ def _save_moves(
     for sav, rest in _collect_companions(loser, loser.stem, save_extensions, extra_dirs):
         dest_dir = keep.parent if sav.parent == loser.parent else sav.parent
         dest = dest_dir / (keep.stem + rest)
-        if dest.exists():
-            conflicts.append(f"{sav.name}: ya existe {dest.name}")
+        # Destino ya ocupado con los mismos bytes: nada que perder, `_carry_saves`
+        # solo retira el sobrante (tras su backup). Distinto: conflicto, no se toca.
+        if dest.exists() and dest.read_bytes() != sav.read_bytes():
+            conflicts.append(f"{sav.name}: ya existe {dest.name} con contenido distinto")
         else:
             moves.append((sav, dest))
     return moves, conflicts
@@ -868,6 +870,9 @@ def _carry_saves(moves: list[tuple[Path, Path]], backup_root: Path | None) -> st
                 from rom_manager.backup.save_backup import backup_save
 
                 backup_save(sav, backup_root)
+            if dest.exists():  # idéntico (ver _save_moves)
+                sav.unlink()
+                continue
             shutil.move(str(sav), str(dest))
             done.append((dest, sav))
     except OSError as exc:
