@@ -402,6 +402,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Actually discard the losing copies (default is dry run).",
     )
+    resolve_dup_parser.add_argument(
+        "--platforms",
+        nargs="+",
+        metavar="PLATAFORMA",
+        help="With --by-content: only these platforms (e.g. NES 'Game Gear' 'Game Boy').",
+    )
+    resolve_dup_parser.add_argument(
+        "--by-content",
+        action="store_true",
+        help=(
+            "DUP-CROSSFMT-11: instead of the RA recommendation, discard only byte-identical "
+            "copies (same sha1) keeping one per content; distinct regions/dumps are untouched."
+        ),
+    )
 
     subparsers.add_parser(
         "init-config",
@@ -478,6 +492,69 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     return parser
+
+
+def _resolve_duplicates_by_content(
+    queue, repository, repository_android, config, apply, platforms=None
+) -> int:
+    """DUP-CROSSFMT-11: ``resolve-duplicates --by-content`` (dry run unless *apply*)."""
+    from rom_manager.renamer.file_renamer import central_save_dirs
+    from rom_manager.services.ra_duplicates_service import (
+        _save_moves,
+        plan_cluster_duplicates,
+        resolve_cluster_duplicates,
+    )
+    from rom_manager.web.builders.common import _repo_for_path
+
+    wanted = {p.lower() for p in platforms or ()}
+    groups = [
+        g
+        for g in queue["groups"]
+        if (not wanted or (g.get("platform") or "").lower() in wanted)
+        and plan_cluster_duplicates(g)
+    ]
+    save_exts = frozenset(config.save_extensions)
+    extra_dirs = central_save_dirs(config)
+    total = sum(len(losers) for g in groups for _, losers in plan_cluster_duplicates(g))
+    discarded = frozenset(
+        Path(e["source_path"]) for g in groups for _, ls in plan_cluster_duplicates(g) for e in ls
+    )
+    print(f"Grupos con copias idénticas: {len(groups)}  ({total} archivos descartables)")
+    if not apply:
+        print("DRY RUN - no files will be changed. Pass --apply to resolve.\n")
+        for g in groups:
+            for keep, losers in plan_cluster_duplicates(g):
+                names = ", ".join(e["filename"] for e in losers)
+                print(
+                    f"  [{g.get('platform')}] conservar: {keep['filename']}  ->  descartar: {names}"
+                )
+                for e in losers:
+                    moves, conflicts = _save_moves(
+                        Path(keep["source_path"]),
+                        Path(e["source_path"]),
+                        save_exts,
+                        extra_dirs,
+                        discarded,
+                    )
+                    for sav, dest in moves:
+                        print(f"      save: {sav.name}  ->  {dest.name}")
+                    for c in conflicts:
+                        print(f"      ! CONFLICTO de save (no se descartará {e['filename']}): {c}")
+        return 0
+
+    for repo in {id(r): r for r in (repository, repository_android)}.values():
+        repo.backup_database()
+    result = resolve_cluster_duplicates(
+        lambda p: _repo_for_path(p, repository, repository_android, config),
+        groups,
+        save_extensions=save_exts,
+        extra_save_dirs=extra_dirs,
+        backup_root=config.data_dir if config.backup.saves_enabled else None,
+    )
+    print(f"Resueltos: {result['resolved']}  (saves renombrados: {result['saves_carried']})")
+    for err in result["errors"]:
+        print(f"  ! {err}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1567,6 +1644,10 @@ def main(argv: list[str] | None = None) -> int:
         _ARCADE_PLATFORMS = {"MAME", "FBNeo", "Arcade"}
 
         queue = _build_review_queue(repository, repository_android, config)
+        if args.by_content:
+            return _resolve_duplicates_by_content(
+                queue, repository, repository_android, config, args.apply, args.platforms
+            )
         arcade_groups = [g for g in queue["groups"] if g.get("platform") in _ARCADE_PLATFORMS]
         console_groups = [g for g in queue["groups"] if g.get("platform") not in _ARCADE_PLATFORMS]
         print(

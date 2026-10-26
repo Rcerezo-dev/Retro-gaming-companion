@@ -8,17 +8,21 @@ mistaken removal can be recovered. No web ``ctx`` here: callers pass plain input
 
 from __future__ import annotations
 
+import hashlib
 import json as _json
 import logging
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
 from rom_manager.detection.filename_normalizer import is_non_canonical_variant
+from rom_manager.renamer.file_renamer import _collect_companions, _companion_remainder
 from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 from rom_manager.sync.chd_header import read_chd_raw_sha1
 from rom_manager.utils.paths import is_device_path
@@ -778,3 +782,170 @@ def apply_all_review_recommendations(
             errors.extend(result.get("errors", []))
 
     return {"resolved": resolved, "errors": errors[:20]}
+
+
+_ARCADE_PLATFORMS = frozenset({"MAME", "FBNeo", "Arcade"})
+
+
+def content_id(entry: dict) -> str | tuple:
+    """DUP-CROSSFMT-11: content identity of a review-queue entry.
+
+    The DB sha1 for a raw file, the inner sha1 for a single-file ``.zip``.
+    Anything unverifiable returns a tuple, so callers never treat it as a match.
+    """
+    path = entry["source_path"]
+    if path.lower().endswith(".zip"):
+        try:
+            with zipfile.ZipFile(path) as z:
+                files = [i for i in z.infolist() if not i.is_dir()]
+                if len(files) != 1:
+                    return ("zip-multi", path)
+                return hashlib.sha1(z.read(files[0])).hexdigest().upper()
+        except (OSError, zipfile.BadZipFile):
+            return ("zip-unreadable", path)
+    return (entry.get("sha1") or "").upper() or ("sin-sha1", path)
+
+
+def plan_cluster_duplicates(group: dict) -> list[tuple[dict, list[dict]]]:
+    """DUP-CROSSFMT-11: ``[(keep, [discard...])]`` per content cluster of one group.
+
+    Only clusters of 2+ entries with a verified identical content id produce
+    anything; entries with distinct or unverifiable content are never listed.
+    Arcade and multi-disc-risk platforms (a different disc is not a duplicate)
+    yield nothing. Entries arrive recommended-first, which decides the keeper.
+    """
+    from rom_manager.planner.operation_planner import _MULTI_DISC_RISK_PLATFORMS
+
+    platform = group.get("platform") or ""
+    if platform in _ARCADE_PLATFORMS or platform.lower() in _MULTI_DISC_RISK_PLATFORMS:
+        return []
+    clusters: dict[str, list[dict]] = defaultdict(list)
+    for entry in group.get("entries", []):
+        cid = content_id(entry)
+        if isinstance(cid, str):
+            clusters[cid].append(entry)
+    plan = []
+    for members in clusters.values():
+        if len(members) < 2:
+            continue
+        keep = next((e for e in members if e.get("recommended")), members[0])
+        plan.append((keep, [e for e in members if e is not keep]))
+    return plan
+
+
+def _save_moves(
+    keep: Path,
+    loser: Path,
+    save_extensions: frozenset[str],
+    extra_dirs: Iterable[Path] = (),
+    discarded: frozenset[Path] = frozenset(),
+) -> tuple[list[tuple[Path, Path]], list[str]]:
+    """DUP-CROSSFMT-11: ``([(save, destino)], conflictos)`` para llevar los saves de
+    *loser* al nombre de *keep*.
+
+    Mismo stem: nada que mover (el save ya vale para el que se queda). Si otro
+    archivo con el stem de *loser* sobrevive (otro dump, no está en *discarded*),
+    el save sigue siendo suyo: tampoco se mueve. Un destino ya ocupado es un
+    conflicto: ante duda no se sobreescribe nada.
+    """
+    if loser.stem == keep.stem:
+        return [], []
+    try:
+        siblings = list(loser.parent.iterdir())
+    except OSError:
+        siblings = []
+    if any(
+        f != loser
+        and f.stem == loser.stem
+        and f.suffix.lower() not in save_extensions
+        and f not in discarded
+        and _companion_remainder(f.name, loser.stem, save_extensions) is None
+        for f in siblings
+    ):
+        return [], []
+    moves: list[tuple[Path, Path]] = []
+    conflicts: list[str] = []
+    for sav, rest in _collect_companions(loser, loser.stem, save_extensions, extra_dirs):
+        dest_dir = keep.parent if sav.parent == loser.parent else sav.parent
+        dest = dest_dir / (keep.stem + rest)
+        # Destino ya ocupado con los mismos bytes: nada que perder, `_carry_saves`
+        # solo retira el sobrante (tras su backup). Distinto: conflicto, no se toca.
+        if dest.exists() and dest.read_bytes() != sav.read_bytes():
+            conflicts.append(f"{sav.name}: ya existe {dest.name} con contenido distinto")
+        else:
+            moves.append((sav, dest))
+    return moves, conflicts
+
+
+def _carry_saves(moves: list[tuple[Path, Path]], backup_root: Path | None) -> str | None:
+    """Mueve los saves planificados (con backup previo); deshace todo si uno falla."""
+    done: list[tuple[Path, Path]] = []
+    try:
+        for sav, dest in moves:
+            if backup_root:
+                from rom_manager.backup.save_backup import backup_save
+
+                backup_save(sav, backup_root)
+            if dest.exists():  # idéntico (ver _save_moves)
+                sav.unlink()
+                continue
+            shutil.move(str(sav), str(dest))
+            done.append((dest, sav))
+    except OSError as exc:
+        for dest, sav in done:
+            shutil.move(str(dest), str(sav))
+        return str(exc)
+    return None
+
+
+def resolve_cluster_duplicates(
+    get_repo_fn: Callable[[str], LibraryRepository],
+    groups: list[dict],
+    adb_transport: AdbTransport | None = None,
+    *,
+    save_extensions: frozenset[str] = frozenset(),
+    extra_save_dirs: Iterable[Path] = (),
+    backup_root: Path | None = None,
+) -> dict:
+    """DUP-CROSSFMT-11: discard byte-identical copies, one keeper per content cluster.
+
+    Unlike ``resolve_duplicate_ra`` (discards everything but the recommended
+    entry), different regions/dumps/hacks in the same group are left alone.
+    The saves of every discarded copy are renamed to the keeper's name first; a
+    copy whose saves cannot be carried over (name clash) is not discarded.
+    """
+    resolved = 0
+    carried = 0
+    errors: list[str] = []
+    discarded = frozenset(
+        Path(e["source_path"]) for g in groups for _, ls in plan_cluster_duplicates(g) for e in ls
+    )
+    for group in groups:
+        for keep, losers in plan_cluster_duplicates(group):
+            keep_path = keep["source_path"]
+            to_discard: list[str] = []
+            for loser in losers:
+                lp = loser["source_path"]
+                if is_device_path(keep_path) or is_device_path(lp):
+                    to_discard.append(lp)  # saves del dispositivo: fuera de alcance
+                    continue
+                if not Path(keep_path).exists():
+                    continue  # resolve_duplicate_ra reporta el keeper ausente
+                moves, conflicts = _save_moves(
+                    Path(keep_path), Path(lp), save_extensions, extra_save_dirs, discarded
+                )
+                err = f"{Path(lp).name}: " + "; ".join(conflicts) if conflicts else None
+                err = err or (_carry_saves(moves, backup_root) if moves else None)
+                if err:
+                    errors.append(f"{Path(lp).name} no descartado, saves sin mover — {err}")
+                    continue
+                carried += len(moves)
+                to_discard.append(lp)
+            if not to_discard:
+                continue
+            result = resolve_duplicate_ra(
+                get_repo_fn(keep_path), keep_path, to_discard, adb_transport
+            )
+            resolved += result.get("discarded", 0)
+            errors.extend(result.get("errors", []))
+    return {"resolved": resolved, "saves_carried": carried, "errors": errors[:20]}
