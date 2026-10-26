@@ -10,12 +10,10 @@ from __future__ import annotations
 
 import argparse
 import collections
-import hashlib
 import re
 import shutil
 import sys
 import tempfile
-import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -24,6 +22,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from rom_manager.config import load_config  # noqa: E402
 from rom_manager.database.repository import LibraryRepository  # noqa: E402
 from rom_manager.detection.platform_detector import PLATFORM_BY_EXTENSION  # noqa: E402
+from rom_manager.services.ra_duplicates_service import content_id  # noqa: E402
 from rom_manager.web.builders.duplicates import _build_review_queue  # noqa: E402
 
 DEFAULT_PLATFORMS = ("NES", "Game Boy", "Game Gear")
@@ -32,21 +31,6 @@ VARIANT_TAG = re.compile(
     r"hack|\[t[+-]|trad|transl|pirate|proto|beta|\(unl|sample|demo|bonus|\[[abfhop]\d*\]|subset",
     re.I,
 )
-
-
-def content_id(entry: dict) -> str | tuple:
-    """sha1 del contenido real: el de la BD para crudos, el del interior para un zip de 1 archivo."""
-    path = entry["source_path"]
-    if path.lower().endswith(".zip"):
-        try:
-            with zipfile.ZipFile(path) as z:
-                files = [i for i in z.infolist() if not i.is_dir()]
-                if len(files) != 1:
-                    return ("zip-multi", path)
-                return hashlib.sha1(z.read(files[0])).hexdigest().upper()
-        except (OSError, zipfile.BadZipFile):
-            return ("zip-unreadable", path)
-    return (entry["sha1"] or "").upper() or ("sin-sha1", path)
 
 
 def classify(entries: list[dict]) -> tuple[str, int]:

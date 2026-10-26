@@ -1,0 +1,74 @@
+"""DUP-CROSSFMT-11: discard only byte-identical copies, keep distinct regions/dumps."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from rom_manager.database.repository import LibraryRepository
+from rom_manager.services.ra_duplicates_service import (
+    plan_cluster_duplicates,
+    resolve_cluster_duplicates,
+)
+
+
+def _entry(repo: LibraryRepository, path: Path, sha1: str, recommended: bool = False) -> dict:
+    path.write_bytes(sha1.encode())
+    repo.upsert_game(
+        original_filename=path.name, source_path=str(path), platform="NES", file_type="rom",
+        relative_parent="", region=None, extension=".nes", size_bytes=1, mtime=1, sha1=sha1,
+        md5="", crc32="", set_type="single", timestamp="2026-01-01T00:00:00",
+    )  # fmt: skip
+    return {
+        "source_path": str(path),
+        "filename": path.name,
+        "sha1": sha1,
+        "recommended": recommended,
+    }
+
+
+def _count(repo: LibraryRepository) -> int:
+    with repo.connect() as c:
+        return c.execute("SELECT COUNT(*) FROM games").fetchone()[0]
+
+
+def test_only_identical_copy_is_discarded(tmp_path: Path) -> None:
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    keep = _entry(repo, tmp_path / "Game (USA).nes", "A" * 40, recommended=True)
+    dupe = _entry(repo, tmp_path / "Game (USA) copy.nes", "A" * 40)
+    other = _entry(repo, tmp_path / "Game (Europe).nes", "B" * 40)
+    group = {"platform": "NES", "entries": [keep, dupe, other]}
+
+    result = resolve_cluster_duplicates(lambda _p: repo, [group])
+
+    assert result["resolved"] == 1
+    assert Path(keep["source_path"]).exists() and Path(other["source_path"]).exists()
+    assert not Path(dupe["source_path"]).exists()
+    assert _count(repo) == 2
+
+
+def test_distinct_unverifiable_and_risky_platforms_untouched(tmp_path: Path) -> None:
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    a = _entry(repo, tmp_path / "a.nes", "A" * 40, recommended=True)
+    b = _entry(repo, tmp_path / "b.nes", "B" * 40)
+    assert plan_cluster_duplicates({"platform": "NES", "entries": [a, b]}) == []
+
+    no_sha = {**a, "sha1": ""}
+    no_sha2 = {**b, "sha1": ""}
+    assert plan_cluster_duplicates({"platform": "NES", "entries": [no_sha, no_sha2]}) == []
+
+    same = {**b, "sha1": "A" * 40}
+    for platform in ("PlayStation", "MAME"):
+        assert plan_cluster_duplicates({"platform": platform, "entries": [a, same]}) == []
+
+
+def test_missing_keeper_discards_nothing(tmp_path: Path) -> None:
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    keep = _entry(repo, tmp_path / "k.nes", "A" * 40, recommended=True)
+    dupe = _entry(repo, tmp_path / "d.nes", "A" * 40)
+    Path(keep["source_path"]).unlink()
+
+    result = resolve_cluster_duplicates(
+        lambda _p: repo, [{"platform": "NES", "entries": [keep, dupe]}]
+    )
+
+    assert result["resolved"] == 0 and Path(dupe["source_path"]).exists()

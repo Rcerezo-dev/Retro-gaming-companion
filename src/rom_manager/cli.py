@@ -402,6 +402,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Actually discard the losing copies (default is dry run).",
     )
+    resolve_dup_parser.add_argument(
+        "--by-content",
+        action="store_true",
+        help=(
+            "DUP-CROSSFMT-11: instead of the RA recommendation, discard only byte-identical "
+            "copies (same sha1) keeping one per content; distinct regions/dumps are untouched."
+        ),
+    )
 
     subparsers.add_parser(
         "init-config",
@@ -478,6 +486,38 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     return parser
+
+
+def _resolve_duplicates_by_content(queue, repository, repository_android, config, apply) -> int:
+    """DUP-CROSSFMT-11: ``resolve-duplicates --by-content`` (dry run unless *apply*)."""
+    from rom_manager.services.ra_duplicates_service import (
+        plan_cluster_duplicates,
+        resolve_cluster_duplicates,
+    )
+    from rom_manager.web.builders.common import _repo_for_path
+
+    groups = [g for g in queue["groups"] if plan_cluster_duplicates(g)]
+    total = sum(len(losers) for g in groups for _, losers in plan_cluster_duplicates(g))
+    print(f"Grupos con copias idénticas: {len(groups)}  ({total} archivos descartables)")
+    if not apply:
+        print("DRY RUN - no files will be changed. Pass --apply to resolve.\n")
+        for g in groups:
+            for keep, losers in plan_cluster_duplicates(g):
+                names = ", ".join(e["filename"] for e in losers)
+                print(
+                    f"  [{g.get('platform')}] conservar: {keep['filename']}  ->  descartar: {names}"
+                )
+        return 0
+
+    for repo in {id(r): r for r in (repository, repository_android)}.values():
+        repo.backup_database()
+    result = resolve_cluster_duplicates(
+        lambda p: _repo_for_path(p, repository, repository_android, config), groups
+    )
+    print(f"Resueltos: {result['resolved']}")
+    for err in result["errors"]:
+        print(f"  ! {err}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1567,6 +1607,10 @@ def main(argv: list[str] | None = None) -> int:
         _ARCADE_PLATFORMS = {"MAME", "FBNeo", "Arcade"}
 
         queue = _build_review_queue(repository, repository_android, config)
+        if args.by_content:
+            return _resolve_duplicates_by_content(
+                queue, repository, repository_android, config, args.apply
+            )
         arcade_groups = [g for g in queue["groups"] if g.get("platform") in _ARCADE_PLATFORMS]
         console_groups = [g for g in queue["groups"] if g.get("platform") not in _ARCADE_PLATFORMS]
         print(

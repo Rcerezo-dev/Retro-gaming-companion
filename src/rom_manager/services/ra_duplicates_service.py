@@ -8,11 +8,13 @@ mistaken removal can be recovered. No web ``ctx`` here: callers pass plain input
 
 from __future__ import annotations
 
+import hashlib
 import json as _json
 import logging
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -777,4 +779,78 @@ def apply_all_review_recommendations(
             resolved += result.get("resolved", 0)
             errors.extend(result.get("errors", []))
 
+    return {"resolved": resolved, "errors": errors[:20]}
+
+
+_ARCADE_PLATFORMS = frozenset({"MAME", "FBNeo", "Arcade"})
+
+
+def content_id(entry: dict) -> str | tuple:
+    """DUP-CROSSFMT-11: content identity of a review-queue entry.
+
+    The DB sha1 for a raw file, the inner sha1 for a single-file ``.zip``.
+    Anything unverifiable returns a tuple, so callers never treat it as a match.
+    """
+    path = entry["source_path"]
+    if path.lower().endswith(".zip"):
+        try:
+            with zipfile.ZipFile(path) as z:
+                files = [i for i in z.infolist() if not i.is_dir()]
+                if len(files) != 1:
+                    return ("zip-multi", path)
+                return hashlib.sha1(z.read(files[0])).hexdigest().upper()
+        except (OSError, zipfile.BadZipFile):
+            return ("zip-unreadable", path)
+    return (entry.get("sha1") or "").upper() or ("sin-sha1", path)
+
+
+def plan_cluster_duplicates(group: dict) -> list[tuple[dict, list[dict]]]:
+    """DUP-CROSSFMT-11: ``[(keep, [discard...])]`` per content cluster of one group.
+
+    Only clusters of 2+ entries with a verified identical content id produce
+    anything; entries with distinct or unverifiable content are never listed.
+    Arcade and multi-disc-risk platforms (a different disc is not a duplicate)
+    yield nothing. Entries arrive recommended-first, which decides the keeper.
+    """
+    from rom_manager.planner.operation_planner import _MULTI_DISC_RISK_PLATFORMS
+
+    platform = group.get("platform") or ""
+    if platform in _ARCADE_PLATFORMS or platform.lower() in _MULTI_DISC_RISK_PLATFORMS:
+        return []
+    clusters: dict[str, list[dict]] = defaultdict(list)
+    for entry in group.get("entries", []):
+        cid = content_id(entry)
+        if isinstance(cid, str):
+            clusters[cid].append(entry)
+    plan = []
+    for members in clusters.values():
+        if len(members) < 2:
+            continue
+        keep = next((e for e in members if e.get("recommended")), members[0])
+        plan.append((keep, [e for e in members if e is not keep]))
+    return plan
+
+
+def resolve_cluster_duplicates(
+    get_repo_fn: Callable[[str], LibraryRepository],
+    groups: list[dict],
+    adb_transport: AdbTransport | None = None,
+) -> dict:
+    """DUP-CROSSFMT-11: discard byte-identical copies, one keeper per content cluster.
+
+    Unlike ``resolve_duplicate_ra`` (discards everything but the recommended
+    entry), different regions/dumps/hacks in the same group are left alone.
+    """
+    resolved = 0
+    errors: list[str] = []
+    for group in groups:
+        for keep, losers in plan_cluster_duplicates(group):
+            result = resolve_duplicate_ra(
+                get_repo_fn(keep["source_path"]),
+                keep["source_path"],
+                [e["source_path"] for e in losers],
+                adb_transport,
+            )
+            resolved += result.get("discarded", 0)
+            errors.extend(result.get("errors", []))
     return {"resolved": resolved, "errors": errors[:20]}
