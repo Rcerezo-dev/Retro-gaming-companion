@@ -163,7 +163,7 @@ def _sibling_exists(source_path: str, new_suffix: str, known_paths: frozenset[st
     candidate = _sibling_path_str(source_path, new_suffix)
     if known_paths is not None and is_device_path(source_path):
         return candidate.lower() in known_paths
-    return _Path(candidate).exists()
+    return _os.path.exists(candidate)
 
 
 def _is_cue_sibling_bin(source_path: str, known_paths: frozenset[str] | None = None) -> bool:
@@ -178,8 +178,7 @@ def _is_cue_sibling_bin(source_path: str, known_paths: frozenset[str] | None = N
     *known_paths*: see ``_sibling_exists`` — required to keep working for an
     Android-scanned ``.bin`` (ANDROID-DUP-1).
     """
-    path = _Path(source_path)
-    if path.suffix.lower() != ".bin":
+    if _os.path.splitext(source_path)[1].lower() != ".bin":
         return False
     return _sibling_exists(source_path, ".cue", known_paths)
 
@@ -197,8 +196,7 @@ def _is_ccd_sibling_data(source_path: str, known_paths: frozenset[str] | None = 
     Android-scanned ``.img``/``.sub`` (ANDROID-DUP-1: confirmed live on the
     RG556, ``Crash Bandicoot [U] [SCUS-94900].ccd/.img/.sub``).
     """
-    path = _Path(source_path)
-    if path.suffix.lower() not in (".img", ".sub"):
+    if _os.path.splitext(source_path)[1].lower() not in (".img", ".sub"):
         return False
     return _sibling_exists(source_path, ".ccd", known_paths)
 
@@ -206,9 +204,14 @@ def _is_ccd_sibling_data(source_path: str, known_paths: frozenset[str] | None = 
 def _is_disc_data_sibling(source_path: str, known_paths: frozenset[str] | None = None) -> bool:
     """True for any sidecar data file (``.cue``'s ``.bin``, ``.ccd``'s
     ``.img``/``.sub``) that must never be unioned/discarded on its own."""
-    return _is_cue_sibling_bin(source_path, known_paths) or _is_ccd_sibling_data(
-        source_path, known_paths
-    )
+    # REVIEW-QUEUE-PERF-1b: se llama una vez por fila (≈237.000 veces en la
+    # biblioteca real); leer la extensión una sola vez y sin objetos Path.
+    ext = _os.path.splitext(source_path)[1].lower()
+    if ext == ".bin":
+        return _sibling_exists(source_path, ".cue", known_paths)
+    if ext in (".img", ".sub"):
+        return _sibling_exists(source_path, ".ccd", known_paths)
+    return False
 
 
 def _is_spanish_filename(filename: str) -> bool:

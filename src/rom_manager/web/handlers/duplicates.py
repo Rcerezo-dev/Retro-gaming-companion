@@ -14,6 +14,9 @@ from rom_manager.services.ra_duplicates_service import (
     resolve_duplicate_ra,
     verify_group_by_disc_hash,
 )
+from rom_manager.web.review_queue_cache import ReviewQueueCache
+
+_review_queue_cache = ReviewQueueCache()
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -163,7 +166,15 @@ def register(
     def get_review_queue(ctx) -> None:
         # TABS-FIX-6: cola única que fusiona duplicados SHA1/semánticos/RA y
         # colisiones del plan — reemplaza la pestaña Duplicados.
-        ctx._send_json(_build_review_queue(repository, repo_android, config))
+        # REVIEW-QUEUE-PERF-1e: construirla cuesta ~5 s; se reutiliza mientras
+        # no cambien las BDs (cualquier acción de la app las modifica).
+        ctx._send_json(
+            _review_queue_cache.get_or_build(
+                (repository, repo_android),
+                lambda: _build_review_queue(repository, repo_android, config),
+                extra=repr(config),
+            )
+        )
 
     # ── POST /api/review-queue/exclude ────────────────────────────────────────
     @router.post("/api/review-queue/exclude")
