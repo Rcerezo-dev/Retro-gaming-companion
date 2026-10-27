@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json as _json
 import logging
+import re
 import shutil
 import subprocess
 import tempfile
@@ -806,15 +807,11 @@ def content_id(entry: dict) -> str | tuple:
     return (entry.get("sha1") or "").upper() or ("sin-sha1", path)
 
 
-def plan_cluster_duplicates(group: dict) -> list[tuple[dict, list[dict]]]:
-    """DUP-CROSSFMT-11: ``[(keep, [discard...])]`` per content cluster of one group.
+def _eligible_entries(group: dict) -> list[dict]:
+    """Entries of *group* that duplicate planners may touch (DUP-CROSSFMT-11d).
 
-    Only clusters of 2+ entries with a verified identical content id produce
-    anything; entries with distinct or unverifiable content are never listed.
-    Arcade and multi-disc-risk platforms (a different disc is not a duplicate)
-    yield nothing, and so do groups with no platform (BIOS/utility files).
-    Entries in backup/trash folders and known BIOS names are never touched
-    (DUP-CROSSFMT-11d). Entries arrive recommended-first, which decides the keeper.
+    Nothing for arcade, multi-disc-risk or platform-less groups; backup/trash
+    folders and known BIOS names are always skipped.
     """
     from rom_manager.detection.platform_detector import bios_definitions
     from rom_manager.planner.operation_planner import _MULTI_DISC_RISK_PLATFORMS
@@ -827,14 +824,30 @@ def plan_cluster_duplicates(group: dict) -> list[tuple[dict, list[dict]]]:
     ):
         return []
     bios_names = {b["filename"].lower() for b in bios_definitions()}
-    clusters: dict[str, list[dict]] = defaultdict(list)
+    out = []
     for entry in group.get("entries", []):
         path = Path(entry["source_path"])
         in_protected_dir = any(
             part.lower().startswith("_backup") or part == TRASH_DIR_NAME for part in path.parts[:-1]
         )
-        if in_protected_dir or path.name.lower() in bios_names:
-            continue
+        if not in_protected_dir and path.name.lower() not in bios_names:
+            out.append(entry)
+    return out
+
+
+def plan_cluster_duplicates(group: dict) -> list[tuple[dict, list[dict]]]:
+    """DUP-CROSSFMT-11: ``[(keep, [discard...])]`` per content cluster of one group.
+
+    Only clusters of 2+ entries with a verified identical content id produce
+    anything; entries with distinct or unverifiable content are never listed.
+    Arcade and multi-disc-risk platforms (a different disc is not a duplicate)
+    yield nothing, and so do groups with no platform (BIOS/utility files).
+    Entries in backup/trash folders and known BIOS names are never touched
+    (DUP-CROSSFMT-11d). Entries arrive recommended-first, which decides the keeper.
+    """
+    eligible = _eligible_entries(group)
+    clusters: dict[str, list[dict]] = defaultdict(list)
+    for entry in eligible:
         cid = content_id(entry)
         if isinstance(cid, str):
             clusters[cid].append(entry)
@@ -844,6 +857,81 @@ def plan_cluster_duplicates(group: dict) -> list[tuple[dict, list[dict]]]:
             continue
         keep = next((e for e in members if e.get("recommended")), members[0])
         plan.append((keep, [e for e in members if e is not keep]))
+    return plan
+
+
+_TAG_RE = re.compile(r"[(\[]([^)\]]*)[)\]]")
+_PRERELEASE_RE = re.compile(r"^(beta|proto|demo|sample|preview)\b", re.I)
+_PROTECTED_RE = re.compile(
+    r"^(unl|pirate|aftermarket|homebrew|t[-+]|v\d)|randomizer|hack|patch|translat|"
+    r"restor|remix|\bmod\b|\bfix\b",
+    re.I,
+)
+_REV_RE = re.compile(r"^rev (\w+)$", re.I)
+
+
+def _rev_rank(rev: str) -> tuple[int, str]:
+    return (0, f"{int(rev):06d}") if rev.isdigit() else (1, rev.upper())
+
+
+_REGION_RANK = {"world": 0, "europe": 1, "usa": 2, "japan": 3}  # menor = preferida
+
+
+def _region_rank(tags: list[str]) -> int | None:
+    """Best (lowest) known region rank among *tags*, ``None`` if no region tag."""
+    ranks = [
+        _REGION_RANK[r.strip().lower()]
+        for t in tags
+        for r in t.split(",")
+        if r.strip().lower() in _REGION_RANK
+    ]
+    return min(ranks) if ranks else None
+
+
+def plan_variant_duplicates(group: dict) -> list[tuple[dict, list[dict]]]:
+    """DUP-VARIANT: ``[(keep, [discard...])]`` per title, by variant tags in the name.
+
+    Goes: Beta/Proto/Demo/Sample when a final exists; a lower ``(Rev N)`` of the
+    same title+region (an untagged original is the lowest); and every region
+    worse than the best one present (World > Europe > USA > Japan). Same-region
+    variants (Virtual Console, SGB...) stay, as does a file with no region tag.
+    Unl/Pirate/Hack/Aftermarket/Homebrew/translations are never touched.
+    """
+    finals: dict[str, list[tuple[dict, tuple, tuple, int | None]]] = defaultdict(list)
+    pre: dict[str, list[dict]] = defaultdict(list)
+    for e in _eligible_entries(group):
+        stem = Path(e["source_path"]).stem
+        tags = _TAG_RE.findall(stem)
+        if any(_PROTECTED_RE.search(t) for t in tags):
+            continue
+        base = re.split(r"\s[(\[]", stem, maxsplit=1)[0].strip().lower()
+        if any(_PRERELEASE_RE.match(t) for t in tags):
+            pre[base].append(e)
+            continue
+        revs = [m.group(1) for t in tags if (m := _REV_RE.match(t))]
+        region = tuple(t for t in tags if not _REV_RE.match(t))
+        rev = _rev_rank(revs[0]) if revs else (-1, "")
+        finals[base].append((e, region, rev, _region_rank(tags)))
+    plan = []
+    for base, items in finals.items():
+        by_region: dict[tuple, list] = defaultdict(list)
+        for item in items:
+            by_region[item[1]].append(item)
+        losers: list[dict] = []
+        survivors = []
+        for same in by_region.values():
+            top = max(it[2] for it in same)
+            survivors += [it for it in same if it[2] == top]
+            losers += [it[0] for it in same if it[2] < top]
+        known = [it[3] for it in survivors if it[3] is not None]
+        best = min(known) if known else None
+        losers += [it[0] for it in survivors if it[3] is not None and it[3] > best]
+        keepers = [it[0] for it in survivors if it[3] is None or it[3] == best]
+        preferred = [it[0] for it in survivors if it[3] == best] or keepers
+        keep = next((e for e in preferred if e.get("recommended")), preferred[0])
+        losers += pre.get(base, [])
+        if losers:
+            plan.append((keep, losers))
     return plan
 
 
@@ -920,6 +1008,8 @@ def resolve_cluster_duplicates(
     save_extensions: frozenset[str] = frozenset(),
     extra_save_dirs: Iterable[Path] = (),
     backup_root: Path | None = None,
+    planner: Callable[[dict], list[tuple[dict, list[dict]]]] = plan_cluster_duplicates,
+    carry_saves: bool = True,
 ) -> dict:
     """DUP-CROSSFMT-11: discard byte-identical copies, one keeper per content cluster.
 
@@ -932,10 +1022,10 @@ def resolve_cluster_duplicates(
     carried = 0
     errors: list[str] = []
     discarded = frozenset(
-        Path(e["source_path"]) for g in groups for _, ls in plan_cluster_duplicates(g) for e in ls
+        Path(e["source_path"]) for g in groups for _, ls in planner(g) for e in ls
     )
     for group in groups:
-        for keep, losers in plan_cluster_duplicates(group):
+        for keep, losers in planner(group):
             keep_path = keep["source_path"]
             to_discard: list[str] = []
             for loser in losers:
@@ -945,6 +1035,15 @@ def resolve_cluster_duplicates(
                     continue
                 if not Path(keep_path).exists():
                     continue  # resolve_duplicate_ra reporta el keeper ausente
+                if not carry_saves:
+                    # different dump: its saves are not valid for the keeper
+                    if _collect_companions(
+                        Path(lp), Path(lp).stem, save_extensions, extra_save_dirs
+                    ):
+                        errors.append(f"{Path(lp).name} no descartado, tiene saves propios")
+                        continue
+                    to_discard.append(lp)
+                    continue
                 moves, conflicts = _save_moves(
                     Path(keep_path), Path(lp), save_extensions, extra_save_dirs, discarded
                 )
