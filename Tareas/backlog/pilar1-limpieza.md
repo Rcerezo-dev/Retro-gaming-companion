@@ -326,7 +326,7 @@ hechos antes de cada tanda de borrado real de hoy, en
 ---
 
 ### ANDROID-DUP-2 — El escaneo ADB nunca calcula SHA1/MD5: matcher nunca corre sobre `library_android.db`, duplicados legacy same-extension invisibles (hallazgo 2026-09-19, RG556, continuación de `ANDROID-DUP-1`)
-> **Estado (revisado 2026-10-20):** ⏳ abierta — recomendación sin implementar, a decidir con el usuario
+> **Estado (revisado 2026-10-27):** ✅ cerrada — la causa raíz (sha1/md5 vacíos) la resolvió `ANDROID-SCAN-FIX-1b`; verificado con un escaneo completo de `/storage/521D-04EA/ROMs` (44.235 ficheros, `errors=0`, `pruned=0`, 22 min, 35.827 hashes; backup `library_android.db.bak-20261027-pre-fullscan2`): la BD pasa de 13.458 a 26.745 filas con sha1 en todas (GBA 1.155 filas, antes 0). Cola de duplicados en la consola tras el escaneo: 230 grupos / 7,82 GB; los de `sha1` puro son pequeños (Game Gear 28, NES 27, SNES 22, Master System 20, Game Boy 11, Mega Drive 9, Atari 2600 8, GBA 3…); lo grande es Dreamcast `sha1` (2 grupos, 3,24 GB) y PlayStation `crossfmt` (11 grupos conocidos, 3,7 GB). Los 13 volcados GBA con `[E]`/`[U]`/`[J]` que quedan tienen el mismo tamaño que su versión canónica pero **sha1 distinto**: son dumps diferentes, no duplicados (los ejemplos originales `Final Fantasy Tactics [E]`/`Pokemon Pinball RZ [E]` ya no existen). El matcher de catálogo sigue sin correr contra esta BD (0 `canonical_title`), pero ya no hace falta para detectar duplicados idénticos.
 
 Origen: comprobando por qué GBA solo tenía 1 grupo `crossfmt` detectado (91
 volcados legacy `[E]`/`[U]` encontrados por ADB) pese al ejemplo del usuario
