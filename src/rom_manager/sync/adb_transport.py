@@ -297,16 +297,32 @@ class AdbTransport:
     ) -> list[AdbFileInfo]:
         """Return all files under *android_path* with size and mtime.
 
-        Uses ``find … -exec stat -c '%n|%s|%Y' {} +`` — single round-trip.
-        Falls back to a slower path if the device's toybox doesn't support it.
+        Uses ``find … -printf`` (path|size|mtime) — single round-trip, no ``-exec``
+        (ANDROID-SCAN-FIX-2: ``-exec stat {} +`` falla con «Argument list too
+        long» en árboles grandes y dejaba un listado truncado que parecía
+        completo). Raises ``RuntimeError`` si la salida no termina con el
+        marcador ``__RC=0|1`` de ``find`` (timeout, adb caído, ``find``
+        abortado): un listado incompleto nunca se devuelve como completo.
         """
-        find_cmd = f"find {shlex.quote(android_path)} -type f -exec stat -c '%n|%s|%Y' {{}} +"
+        find_cmd = (
+            f"find {shlex.quote(android_path)} -type f -printf '%p|%s|%T@\\n'; "
+            'echo "__RC=$?"'
+        )
         out = self._shell(find_cmd, timeout=timeout)
 
+        lines = out.splitlines()
+        marker = next((ln.strip() for ln in reversed(lines) if ln.strip()), "")
+        # ponytail: rc 1 = find leyó lo que pudo (p. ej. Android/data denegado); >1 = abortó
+        if marker not in ("__RC=0", "__RC=1"):
+            raise RuntimeError(
+                f"Listado incompleto de {android_path!r} en el dispositivo "
+                f"(find terminó con {marker!r}); no se usa para no perder datos"
+            )
+
         results: list[AdbFileInfo] = []
-        for line in out.splitlines():
+        for line in lines:
             line = line.strip()
-            if not line or line.startswith("find:") or line.startswith("stat:"):
+            if not line or line.startswith("find:") or line.startswith("__RC="):
                 continue
             parts = line.rsplit("|", 2)
             if len(parts) != 3:
