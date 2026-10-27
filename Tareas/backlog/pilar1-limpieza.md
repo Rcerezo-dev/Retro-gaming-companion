@@ -538,7 +538,7 @@ arriba en esta misma tarea |
 ---
 
 ### ANDROID-DUP-CROSSFMT-VERIFY-1 — los 61 grupos `crossfmt` restantes (53 pares `.chd`+`.bin` + 8 más, ~26,5 GB) no tienen ninguna verificación de contenido, solo coincidencia de nombre (hallazgo 2026-09-25)
-> **Estado (revisado 2026-10-20):** ⏳ abierta — pendiente repetir la verificación con la función ya integrada
+> **Estado (revisado 2026-10-27):** ✅ cerrada. Cola real hoy en la consola: 9 grupos `crossfmt` puros + 2 mixtos (PlayStation). Verificados por hash RA con `/api/verify-duplicate-hash` (solo lectura): **2 idénticos y descartados** (`Digimon World 3 (USA).bin`, `Crash Bandicoot (USA).bin`, `.chd` conservado; borrados en la consola, sin copia en `_descartados` porque en rutas de dispositivo se borra por ADB), **3 MISMATCH reales no tocados** (Tony Hawk's Pro Skater 3, Legacy of Kain - Soul Reaver, Resident Evil), 6 sin verificable (`.cue`/`.img` sin su `.bin`, o `.img`+`.sub`: Crash Bash, Twisted Metal, Driver, New (Slovakia) Art Assets, Mortal Kombat 3, Guilty Gear). Backup `library_android.db.bak-20261027-pre-crossfmt-verify`. **Hallazgo sin arreglar**: `POST /api/resolve-duplicate-ra` contra el servidor en marcha devolvió «el archivo recomendado no existe» con el `.chd` presente (el mismo `verify-duplicate-hash` sí veía el transporte ADB); la misma función llamada en un proceso aparte funcionó. Causa sin identificar — investigar antes de fiarse de ese endpoint en dispositivo.
 
 `reasons == ["crossfmt"]` en `_review_groups_for_repo` (`web/builders/
 duplicates.py:992-1017`) agrupa por título normalizado (`normalize_title_
