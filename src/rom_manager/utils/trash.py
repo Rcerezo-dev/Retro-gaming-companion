@@ -32,6 +32,8 @@ def discard_to_trash(path: Path) -> Path:
     suffix — nothing is ever overwritten or permanently deleted here.
     Clears the read-only attribute first (WinError 5 on console-formatted SDs).
     """
+    if TRASH_DIR_NAME in path.parts[:-1]:
+        return path  # ya está descartado: no anidar _descartados/_descartados/ (DUP-VARIANT-2)
     trash_dir = path.parent / TRASH_DIR_NAME
     trash_dir.mkdir(parents=True, exist_ok=True)
     dest = trash_dir / path.name
