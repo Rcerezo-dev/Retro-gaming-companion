@@ -5,6 +5,8 @@ recopiar/redescartar contenido ya descartado, reanidando la papelera)."""
 
 from __future__ import annotations
 
+import pytest
+
 from rom_manager.sync.adb_transport import AdbTransport
 
 
@@ -26,3 +28,22 @@ def test_ls_recursive_skips_descartados(monkeypatch) -> None:
     found = {info.android_path for info in transport.ls_recursive("/sdcard/roms")}
 
     assert found == {"/sdcard/roms/psx/game.chd"}
+
+
+def test_ls_recursive_raises_on_argument_list_too_long(monkeypatch) -> None:
+    """ANDROID-SCAN-FIX-1f: un listado parcial no puede pasar por completo."""
+    output = "/sdcard/roms/a.nes|1|1\nfind: exec stat: Argument list too long\n"
+    transport = _make_transport(monkeypatch, output)
+
+    with pytest.raises(OSError):
+        transport.ls_recursive("/sdcard/roms")
+
+
+def test_ls_recursive_uses_xargs_not_exec_plus(monkeypatch) -> None:
+    seen: list[str] = []
+    transport = AdbTransport("adb.exe", "SERIAL123")
+    monkeypatch.setattr(transport, "_shell", lambda cmd, **kw: seen.append(cmd) or "")
+
+    transport.ls_recursive("/sdcard/roms")
+
+    assert "xargs -0" in seen[0] and "-exec" not in seen[0]

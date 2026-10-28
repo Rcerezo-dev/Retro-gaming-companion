@@ -297,11 +297,16 @@ class AdbTransport:
     ) -> list[AdbFileInfo]:
         """Return all files under *android_path* with size and mtime.
 
-        Uses ``find … -exec stat -c '%n|%s|%Y' {} +`` — single round-trip.
-        Falls back to a slower path if the device's toybox doesn't support it.
+        Uses ``find … -print0 | xargs -0 stat`` — single round-trip. ``-exec stat
+        {} +`` falló con "Argument list too long" a partir de ~44.000 archivos y el
+        bucle de abajo descartaba esa línea: ANDROID-SCAN-FIX-1f (listado parcial →
+        el escaneo podaba el resto). ``xargs`` parte los argumentos él solo.
         """
-        find_cmd = f"find {shlex.quote(android_path)} -type f -exec stat -c '%n|%s|%Y' {{}} +"
+        find_cmd = f"find {shlex.quote(android_path)} -type f -print0 | xargs -0 stat -c '%n|%s|%Y'"
         out = self._shell(find_cmd, timeout=timeout)
+        if "Argument list too long" in out:
+            # Nunca devolver un listado parcial: quien lo use para podar borraría el resto.
+            raise OSError(f"listado incompleto de {android_path}: Argument list too long")
 
         results: list[AdbFileInfo] = []
         for line in out.splitlines():
