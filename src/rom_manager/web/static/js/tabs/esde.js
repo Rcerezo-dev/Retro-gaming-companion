@@ -1094,6 +1094,17 @@ let _doctorIssues = [];
 async function _doctorScope() {
   const context = localStorage.getItem('tools_context') === 'android' ? 'android' : 'pc';
   if (context === 'pc') return { context, root: '' };
+  // ruta del dispositivo por ADB (empieza por «/»): tiene prioridad sobre la SD montada
+  const adbInput = document.getElementById('doctor-adb-root');
+  if (adbInput) {
+    if (!adbInput.dataset.loaded) {
+      if (!adbInput.value) adbInput.value = localStorage.getItem('doctor_adb_root') || '';
+      adbInput.dataset.loaded = '1';
+    }
+    localStorage.setItem('doctor_adb_root', adbInput.value.trim());
+  }
+  const adbRoot = (localStorage.getItem('doctor_adb_root') || '').trim();
+  if (adbRoot.startsWith('/')) return { context, root: adbRoot };
   let cfg = {};
   try { cfg = await apiFetch('/api/config'); } catch (e) { /* sin config: root vacío */ }
   const root = cfg.anbernic_root || localStorage.getItem('anbernic_path')

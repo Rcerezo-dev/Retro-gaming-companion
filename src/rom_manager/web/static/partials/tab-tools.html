@@ -49,6 +49,11 @@
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Library Doctor</h3>
     <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Analiza tu biblioteca y detecta: ROMs fuera de su carpeta de plataforma, sets de disco incompletos (juegos que no funcionan) y carpetas vacías. Actúa sobre el <strong>contexto</strong> de arriba: PC o Consola Android (por ADB).</p>
+    <div class="actions-row" style="margin-bottom:8px">
+      <input id="doctor-adb-root" type="text" style="flex:1;min-width:260px"
+             placeholder="Consola por ADB (opcional): /storage/XXXX-XXXX/ROMs — vacío = ruta de la SD de Ajustes"
+             title="Solo en contexto Consola Android. Una ruta que empieza por / se lee directamente del dispositivo por USB (ADB)">
+    </div>
     <div class="actions-row">
       <button class="btn primary" onclick="doLibraryDoctor()">&#x1F489; Analizar biblioteca</button>
       <button class="btn hidden" id="btn-doctor-resolve-all"
