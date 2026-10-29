@@ -161,6 +161,7 @@ Secciones con alguna tarea sin ✅ (`pendiente`). Regenerar con `python scripts/
 | CABLE-ROOT-1 — El Cable Sync por ADB apuntaba a almacenamiento interno vacío, no a la SD real del dispositivo  | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
 | ANDROID-APP-PRIVATE-STORAGE-1 — DuckStation y AetherSX2 guardan en `Android/data/<paquete>/` (RG556): ni ADB n | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
 | EMU-RETURN-DUCK-1 — Volver a DuckStation (fork propio, instalado al lado) y a AetherSX2/NetherSX2 en la RG556; backup ADB primero (2026-10-21) | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
+| ANDROID-EMU-SAVES-ACCESS-1 — Sync de memory cards PS1/PS2 con DuckStation y AetherSX2 en la RG556: DuckStation parcheado y volcado (hecho), AetherSX2 aparcado, fusión PS2 y consola→Drive pendientes (2026-10-29) | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
 | SAVE-GUARD — No dejar que un save dañado gane un conflicto (idea 2026-10-03) | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
 | SAGE — Soporte para Retro Sage (recomendador NLP) | [ra-scraper-sage](backlog/ra-scraper-sage.md) | pendiente |
 | RA-LIVE — Progreso de logros en la ficha del juego (idea usuario 2026-09-22) | [ra-scraper-sage](backlog/ra-scraper-sage.md) | pendiente |

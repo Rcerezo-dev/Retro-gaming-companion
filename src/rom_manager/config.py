@@ -58,6 +58,20 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
         "save_extensions": [".mcd", ".mcr", ".srm"],
         "state_extensions": [".sav"],
     },
+    "com.github.stenzek.duckstation": {
+        "name": "DuckStation parcheado (PS1)",
+        # ANDROID-EMU-SAVES-ACCESS-1e (2026-10-29): el DuckStation oficial 0.1-8969
+        # con el parche JoeysRetroHandhelds/duckstation-patch (auditado) guarda en
+        # /storage/emulated/0/DuckStation en vez de Android/data; es la misma carpeta
+        # pública (el almacenamiento compartido no distingue mayúsculas) que usa el
+        # fork ".rv", legible por `adb shell ls` sin root. Sin el parche, la app
+        # sigue en Android/data/<pkg>/ y esta ruta queda vacía.
+        "saves_path": "/storage/emulated/0/DuckStation/memcards",
+        "states_path": "/storage/emulated/0/DuckStation/savestates",
+        "adb_required": True,
+        "save_extensions": [".mcd", ".mcr", ".srm"],
+        "state_extensions": [".sav"],
+    },
     "com.armsx2": {
         "name": "ARMSX2 (PS2)",
         # ANDROID-APP-PRIVATE-STORAGE-1 (2026-09-26): switched from AetherSX2
