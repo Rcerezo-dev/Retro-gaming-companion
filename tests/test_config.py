@@ -136,24 +136,22 @@ def test_reads_cheats_sync_section(tmp_path: Path) -> None:
     assert cfg.sync.cheats_remote == "dropbox:/RetroSync/cheats"
 
 
-def test_get_adb_sync_sources_excludes_duckstation(tmp_path: Path) -> None:
-    """VAL-FIX-4: DuckStation memcards are unreachable via ADB (scoped storage,
-    Android 11+, no root) — must be excluded like Dolphin, not retried forever."""
+def test_get_adb_sync_sources_excludes_inaccessible_dolphin(tmp_path: Path) -> None:
+    """VAL-FIX-4: apps con carpeta privada ilegible por ADB (Dolphin: scoped storage,
+    Android 11+, sin root) se excluyen, no se reintentan. DuckStation ya no es el caso:
+    ANDROID-EMU-SAVES-ACCESS-1e lo incluye vía el parche de carpeta pública."""
     (tmp_path / "config.toml").write_text(
         f'[library]\nlibrary_root = "{tmp_path.as_posix()}"\n', encoding="utf-8"
     )
     cfg = load_config(tmp_path)
     packages = {src["package"] for src in get_adb_sync_sources(cfg)}
-    assert (
-        "com.github.stenzek.duckstation" not in packages
-    )  # replaced by ARMSX1, no longer in defaults
     assert "org.dolphinemu.dolphinemu" not in packages
     assert "com.armsx2" in packages  # sanity: accessible ones still included
 
 
 def test_get_adb_sync_sources_includes_duckstation_fork(tmp_path: Path) -> None:
     """EMU-RETURN-DUCK-1f: el fork .rv guarda en /storage/emulated/0/duckstation (público,
-    legible por ADB); el DuckStation oficial sigue fuera (carpeta privada)."""
+    legible por ADB); el oficial parcheado (1e) usa la misma carpeta pública."""
     (tmp_path / "config.toml").write_text(
         f'[library]\nlibrary_root = "{tmp_path.as_posix()}"\n', encoding="utf-8"
     )
@@ -163,7 +161,11 @@ def test_get_adb_sync_sources_includes_duckstation_fork(tmp_path: Path) -> None:
     assert fork["android_saves"] == "/storage/emulated/0/duckstation/memcards"
     assert fork["android_states"] == "/storage/emulated/0/duckstation/savestates"
     assert fork["local_saves"] != by_pkg["com.nanodata.armsx"]["local_saves"]
-    assert "com.github.stenzek.duckstation" not in by_pkg
+    # ANDROID-EMU-SAVES-ACCESS-1e: el oficial parcheado usa la misma carpeta pública.
+    official = by_pkg["com.github.stenzek.duckstation"]
+    assert official["android_saves"] == "/storage/emulated/0/DuckStation/memcards"
+    assert official["android_states"] == "/storage/emulated/0/DuckStation/savestates"
+    assert official["local_saves"] != fork["local_saves"]
 
 
 def test_get_adb_sync_sources_excludes_emuex_families_with_no_real_path(tmp_path: Path) -> None:
