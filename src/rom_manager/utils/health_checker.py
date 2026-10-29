@@ -32,11 +32,15 @@ def check_disc_set_health(directory: Path) -> DiscHealthSummary:
     reutilizable, mismo espíritu que :func:`check_library_health` pero para
     integridad de sets multi-archivo en vez de "existe la ruta".
     """
-    from rom_manager.converters.chd_converter import find_cue_files, is_broken_cue_set
     from rom_manager.retroachievements.ra_checker import _normalize_title
+    from rom_manager.services.incomplete_sets_service import plan_incomplete
+    from rom_manager.services.library_fs import LocalLibraryFS
 
     summary = DiscHealthSummary()
-    broken_cues = [cue for cue in find_cue_files(directory) if is_broken_cue_set(cue)]
+    # PRUNE-INCOMPLETE-1: una sola definición de «set roto» (la del Library Doctor); aquí solo
+    # cambia la búsqueda de rescate (título normalizado, región distinta cuenta)
+    fs = LocalLibraryFS(directory)
+    broken_cues = [directory / s.cue for s in plan_incomplete(fs.list_files(), fs.read_text).sets]
     if not broken_cues:
         return summary
 
