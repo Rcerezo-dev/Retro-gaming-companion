@@ -111,7 +111,7 @@ import {
   doHealthCheck, _renderHealthResult, _filterHealthIssues, loadOperationsTimeline, _clearHealthFilter,
   doJunkScan, _renderJunkResult, junkToggleCat, junkSelectAll, junkRevealCat, junkCatCheck, junkDelete, zipRouteApply,
   doFindOrphans, doDeleteOrphans, doMoveOrphansToArchive, moveOrphanedSave,
-  doLibraryDoctor, doctorMoveRom, doctorDeleteDir, doctorResolveAll, doFolderAnalysis,
+  doLibraryDoctor, doctorMoveRom, doctorDeleteDir, doctorResolveAll, doctorPruneIncomplete, doFolderAnalysis,
   loadUnmatchedDiagnosis, downloadMissingDats,
   generateReport, showReportTab, _renderReportZips, _renderReportPlaylists, _renderReportMultidisc, _renderReportOrphans, _renderReportRA, _renderReportChd, exportReportHtml,
 } from './tabs/esde.js';
@@ -241,7 +241,7 @@ Object.assign(window, {
   doHealthCheck, _renderHealthResult, _filterHealthIssues, loadOperationsTimeline, _clearHealthFilter,
   doJunkScan, _renderJunkResult, junkToggleCat, junkSelectAll, junkRevealCat, junkCatCheck, junkDelete, zipRouteApply,
   doFindOrphans, doDeleteOrphans, doMoveOrphansToArchive, moveOrphanedSave,
-  doLibraryDoctor, doctorMoveRom, doctorDeleteDir, doctorResolveAll, doFolderAnalysis,
+  doLibraryDoctor, doctorMoveRom, doctorDeleteDir, doctorResolveAll, doctorPruneIncomplete, doFolderAnalysis,
   loadUnmatchedDiagnosis, downloadMissingDats,
   generateReport, showReportTab, _renderReportZips, _renderReportPlaylists, _renderReportMultidisc, _renderReportOrphans, _renderReportRA, _renderReportChd, exportReportHtml,
   // overview.js — overview tab, heatmap, charts, wizard
