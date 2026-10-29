@@ -215,6 +215,28 @@ class AdbTransport:
         if self.file_exists(android_path):
             raise RuntimeError(f"No se pudo borrar {android_path} en el dispositivo")
 
+    def read_text(self, android_path: str, *, timeout: int = 30) -> str:
+        """Contenido de un archivo de texto pequeño (``.cue``, ``.m3u``) del dispositivo."""
+        return self._shell(f"cat {shlex.quote(android_path)}", timeout=timeout)
+
+    def discard(self, android_path: str) -> str:
+        """Espejo de ``utils.trash.discard_to_trash``: mueve el archivo a ``_descartados/`` junto
+        a él (sufijo numérico si ya existe uno igual) y devuelve la ruta nueva. No lo borra."""
+        p = PurePosixPath(android_path)
+        if TRASH_DIR_NAME in p.parts[:-1]:
+            return android_path
+        trash = str(p.parent / TRASH_DIR_NAME)
+        dest = f"{trash}/{p.name}"
+        n = 1
+        while self.file_exists(dest):
+            dest = f"{trash}/{p.stem} ({n}){p.suffix}"
+            n += 1
+        self._shell(f"mkdir -p {shlex.quote(trash)}")
+        self._shell(f"mv {shlex.quote(android_path)} {shlex.quote(dest)}")
+        if self.file_exists(android_path) or not self.file_exists(dest):
+            raise RuntimeError(f"No se pudo descartar {android_path} en el dispositivo")
+        return dest
+
     def _trash_dirs(self, roots: list[str] | None) -> set[str]:
         if roots is None:
             out = self._shell("ls -d /storage/*/ 2>/dev/null", timeout=15)
