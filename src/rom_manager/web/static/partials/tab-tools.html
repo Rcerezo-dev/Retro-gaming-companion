@@ -53,6 +53,9 @@
       <button class="btn primary" onclick="doLibraryDoctor()">&#x1F489; Analizar biblioteca</button>
       <button class="btn hidden" id="btn-doctor-resolve-all"
               onclick="doctorResolveAll()">&#x2714; Resolver todos</button>
+      <button class="btn hidden" id="btn-doctor-repair"
+              title="Mueve junto a su .cue las pistas que están en otra carpeta y crea el .cue de los juegos completos que lo perdieron. No borra ni sobrescribe nada."
+              onclick="doctorRepairIncomplete()">&#x1F527; Reparar sets</button>
       <button class="btn danger hidden" id="btn-doctor-prune"
               title="Mueve a _descartados/ los sets de disco incompletos, las listas .m3u rotas y las pistas sueltas, y descarga la lista de juegos que no funcionaban. Lo reparable no se toca."
               onclick="doctorPruneIncomplete()">&#x1F9F9; Retirar incompletos</button>

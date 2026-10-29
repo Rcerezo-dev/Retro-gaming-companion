@@ -1114,18 +1114,19 @@ export async function doLibraryDoctor() {
     if (d.total === 0) {
       el.innerHTML = '<p style="color:var(--c-teal);font-size:12px">✓ Biblioteca sana — no se encontraron problemas.</p>';
       document.getElementById('btn-doctor-prune')?.classList.add('hidden');
+      document.getElementById('btn-doctor-repair')?.classList.add('hidden');
       return;
     }
 
     const sev = { error: 'var(--c-red)', warning: 'var(--c-orange)', info: '#555' };
     const icon = { misplaced_rom: '📁', empty_dir: '📂', lost_game: '✗', leftover_set: '🗑', repairable_set: '🔧',
-      rebuildable_set: '🔧', broken_m3u: '📄', orphan_tracks: '🧩' };
+      rebuildable_set: '🔧', bad_chd: '💥', broken_m3u: '📄', orphan_tracks: '🧩' };
     const label = { misplaced_rom: 'ROM mal ubicado', empty_dir: 'Carpeta vacía',
       lost_game: 'Juego que no funciona', leftover_set: 'Resto de un juego que sí funciona',
       repairable_set: 'Set reparable (se conserva)', rebuildable_set: 'Completo sin .cue (se conserva)',
-      broken_m3u: 'Lista .m3u rota', orphan_tracks: 'Pistas sueltas' };
+      broken_m3u: 'Lista .m3u rota', orphan_tracks: 'Pistas sueltas', bad_chd: 'CHD vacío o corrupto' };
     const sevByType = { misplaced_rom: 'warning', empty_dir: 'info', lost_game: 'error', leftover_set: 'warning',
-      repairable_set: 'info', rebuildable_set: 'info', broken_m3u: 'warning', orphan_tracks: 'warning' };
+      repairable_set: 'info', rebuildable_set: 'info', broken_m3u: 'warning', orphan_tracks: 'warning', bad_chd: 'error' };
 
     let html = `<div style="margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap;font-size:12px">`;
     for (const [type, count] of Object.entries(d.by_type || {})) {
@@ -1170,6 +1171,11 @@ export async function doLibraryDoctor() {
       pruneBtn.classList.toggle('hidden', !(d.removable > 0));
       pruneBtn.textContent = `🧹 Retirar incompletos (${d.removable})`;
     }
+    const repairBtn = document.getElementById('btn-doctor-repair');
+    if (repairBtn) {
+      repairBtn.classList.toggle('hidden', !(d.repairable > 0));
+      repairBtn.textContent = `🔧 Reparar sets (${d.repairable})`;
+    }
   } catch(e) {
     el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
   }
@@ -1194,6 +1200,27 @@ Se mueven a _descartados/ (no se borran de golpe) y se descarga la lista de jueg
     a.download = `juegos_eliminados_${new Date().toISOString().slice(0, 10)}.md`;
     a.click();
     URL.revokeObjectURL(a.href);
+    await doLibraryDoctor();
+  } catch (e) {
+    showToast('Error: ' + e.message, 'err');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+export async function doctorRepairIncomplete() {
+  const scope = await _doctorScope();
+  const where = scope.context === 'android' ? `la consola (${scope.root})` : 'la biblioteca del PC';
+  if (!confirm(`¿Reparar los sets de ${where}?
+
+Mueve las pistas que faltan junto a su .cue y crea los .cue que han desaparecido. No se borra ni se sobrescribe nada.`)) return;
+
+  const btn = document.getElementById('btn-doctor-repair');
+  if (btn) btn.disabled = true;
+  try {
+    const d = await apiPost('/api/library-doctor/repair-incomplete', scope);
+    if (d.error) { showToast('Error: ' + d.error, 'err'); return; }
+    showToast(`✓ ${d.moved} pistas movidas, ${d.cues} .cue creados`, 'ok');
     await doLibraryDoctor();
   } catch (e) {
     showToast('Error: ' + e.message, 'err');

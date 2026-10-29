@@ -183,6 +183,39 @@ def register_doctor(
             return
         ctx._send_json(_handle_library_doctor(config, repository, fs=fs))
 
+    def _post_library_fs(ctx):
+        """``fs`` del cuerpo del POST o None tras responder el error."""
+        from rom_manager.services.library_fs import LocalLibraryFS
+
+        data = ctx._post_data
+        fs, err = _library_fs_for(config, data.get("context", "pc"), data.get("root", ""))
+        if err:
+            ctx._send_json({"error": err})
+            return None
+        if fs is None:
+            if not config.library_root:
+                ctx._send_json({"error": "library_root no configurado"})
+                return None
+            fs = LocalLibraryFS(Path(config.library_root))
+        return fs
+
+    # ── POST /api/library-doctor/repair-incomplete (PRUNE-INCOMPLETE-1d) ─────
+    @router.post("/api/library-doctor/repair-incomplete")
+    def post_repair_incomplete(ctx) -> None:
+        """Repara sin borrar: mueve pistas junto a su .cue y crea los .cue que faltan."""
+        from rom_manager.services.incomplete_sets_service import apply_repairs, plan_for
+
+        fs = _post_library_fs(ctx)
+        if fs is None:
+            return
+        try:
+            moved, cues = apply_repairs(fs, plan_for(fs))
+        except (OSError, RuntimeError) as exc:
+            _logger.warning("repair-incomplete falló", exc_info=True)
+            ctx._send_json({"error": str(exc)})
+            return
+        ctx._send_json({"moved": moved, "cues": cues})
+
     # ── POST /api/library-doctor/prune-incomplete (PRUNE-INCOMPLETE-1) ───────
     @router.post("/api/library-doctor/prune-incomplete")
     def post_prune_incomplete(ctx) -> None:
@@ -193,18 +226,10 @@ def register_doctor(
             plan_for,
             render_report,
         )
-        from rom_manager.services.library_fs import LocalLibraryFS
 
-        data = ctx._post_data
-        fs, err = _library_fs_for(config, data.get("context", "pc"), data.get("root", ""))
-        if err:
-            ctx._send_json({"error": err})
-            return
+        fs = _post_library_fs(ctx)
         if fs is None:
-            if not config.library_root:
-                ctx._send_json({"error": "library_root no configurado"})
-                return
-            fs = LocalLibraryFS(Path(config.library_root))
+            return
         try:
             plan = plan_for(fs)
             report = render_report(plan)

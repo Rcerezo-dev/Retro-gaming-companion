@@ -347,6 +347,7 @@ def _doctor_result(issues: list[dict]) -> dict:
         "total": len(issues),
         "by_type": by_type,
         "removable": sum(1 for i in issues if i.get("removable")),
+        "repairable": sum(1 for i in issues if i.get("repairable")),
     }
 
 

@@ -7,6 +7,20 @@ from pathlib import Path
 from rom_manager.sync.adb_transport import AdbFileInfo
 
 
+def _good_chd() -> bytes:
+    h = bytearray(124)
+    h[:8] = b"MComprHD"
+    h[8:12] = (124).to_bytes(4, "big")
+    h[12:16] = (5).to_bytes(4, "big")
+    h[32:40] = (1000).to_bytes(8, "big")
+    h[40:48] = (200).to_bytes(8, "big")
+    h[48:56] = (300).to_bytes(8, "big")
+    return bytes(h).ljust(600, bytes(1))
+
+
+GOOD_CHD = _good_chd()
+
+
 def _cue(*names: str) -> str:
     return "\n".join(f'FILE "{n}" BINARY\n  TRACK 01 MODE2/2352' for n in names)
 
@@ -15,7 +29,7 @@ def _make_pc_library(root: Path) -> None:
     psx = root / "psx"
     psx.mkdir(parents=True)
     (psx / "Lost (Europe).cue").write_text(_cue("Lost (Europe) (Track 1).bin"))
-    (psx / "Fine (USA).chd").write_bytes(b"x")
+    (psx / "Fine (USA).chd").write_bytes(GOOD_CHD)
     (psx / "Stray (Track 9).bin").write_bytes(b"x" * 10)
 
 
@@ -31,6 +45,9 @@ class FakeTransport:
 
     def read_text(self, android_path: str, **_kw) -> str:
         return self.files[android_path]
+
+    def read_head(self, android_path: str, n: int, **_kw) -> bytes:
+        return GOOD_CHD[:n]
 
     def discard(self, android_path: str) -> str:
         self.discarded.append(android_path)
@@ -66,7 +83,7 @@ def test_android_context_uses_adb_listing_and_discards_on_device(client, monkeyp
     fake = FakeTransport(
         {
             f"{root}/psx/Lost (Europe).cue": _cue("Lost (Europe) (Track 1).bin"),
-            f"{root}/psx/Good (USA).chd": "x",
+            f"{root}/psx/Good (USA).chd": "x" * 600,
         }
     )
     monkeypatch.setattr(
