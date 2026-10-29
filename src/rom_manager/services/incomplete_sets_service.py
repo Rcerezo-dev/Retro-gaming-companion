@@ -11,6 +11,9 @@ Reglas (una ruta es relativa a la carpeta de la plataforma, separador ``/``):
 * Si lo que falta existe en otra carpeta, el set es *reparable*: NO se descarta, se informa.
 * Un ``.m3u`` con alguna entrada inexistente es una lista rota.
 * Una pista ``(Track N).bin`` que ningún ``.cue`` referencia es un resto huérfano.
+* Un ``.chd`` vacío, sin firma o truncado (``chd_problem``) es inservible y se retira.
+* Lo reparable no se descarta: ``apply_repairs`` mueve las pistas encontradas junto a su ``.cue``
+  y regenera el ``.cue`` de los juegos completos que lo han perdido.
 * Un set incompleto «perdido» es el que no tiene otra copia que funcione del mismo juego
   y región (``.chd``, ``.cue`` completo o ``.bin`` suelto): esos van a la lista de juegos perdidos.
 """
@@ -26,6 +29,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rom_manager.services.library_fs import LibraryFS
+
+from rom_manager.sync.chd_header import CHD_V5_HEADER_SIZE, chd_problem
 
 _TRACK_BIN = re.compile(r" \(Track \d+\)\.bin$", re.IGNORECASE)
 _FILE_LINE = re.compile(r'^\s*FILE\s+(?:"([^"]+)"|(\S+))', re.IGNORECASE)
@@ -49,6 +54,8 @@ class IncompletePlan:
     broken_m3u: list[tuple[str, list[str]]] = field(default_factory=list)
     orphan_tracks: list[str] = field(default_factory=list)
     rebuildable: dict[str, list[str]] = field(default_factory=dict)
+    bad_chds: list[tuple[str, str]] = field(default_factory=list)  # (ruta, motivo)
+    repairs: list[tuple[str, str]] = field(default_factory=list)  # (origen, destino) junto al .cue
     keep: frozenset[str] = frozenset()
     sizes: Mapping[str, int] = field(default_factory=dict)
 
@@ -62,6 +69,7 @@ class IncompletePlan:
                 out.extend(s.present)
         out.extend(m for m, _ in self.broken_m3u)
         out.extend(self.orphan_tracks)
+        out.extend(p for p, _ in self.bad_chds)
         return [p for p in dict.fromkeys(out) if p not in self.keep]
 
     @property
@@ -91,7 +99,11 @@ def game_key(path: str) -> str:
     return f"{title} {region}".strip().lower()
 
 
-def plan_incomplete(files: Mapping[str, int], read_text: Callable[[str], str]) -> IncompletePlan:
+def plan_incomplete(
+    files: Mapping[str, int],
+    read_text: Callable[[str], str],
+    read_head: Callable[[str, int], bytes] | None = None,
+) -> IncompletePlan:
     by_name: dict[str, list[str]] = defaultdict(list)
     for f in files:
         by_name[posixpath.basename(f)].append(f)
@@ -131,6 +143,10 @@ def plan_incomplete(files: Mapping[str, int], read_text: Callable[[str], str]) -
         if recoverable:
             for m in found:
                 protected.update(by_name[m])
+                dst = posixpath.join(posixpath.dirname(cue), m)
+                # sin ambigüedad (un solo candidato) y sin que otro .cue ya lo haya pedido
+                if len(by_name[m]) == 1 and all(by_name[m][0] != r[0] for r in plan.repairs):
+                    plan.repairs.append((by_name[m][0], dst))
         plan.sets.append(
             IncompleteSet(
                 cue=cue,
@@ -141,6 +157,13 @@ def plan_incomplete(files: Mapping[str, int], read_text: Callable[[str], str]) -
                 size_bytes=files.get(cue, 0) + sum(files[p] for p in present),
             )
         )
+
+    if read_head is not None:
+        for f in sorted(files):
+            if f.lower().endswith(".chd"):
+                why = chd_problem(read_head(f, CHD_V5_HEADER_SIZE), files[f])
+                if why:
+                    plan.bad_chds.append((f, why))
 
     for f in sorted(files):
         if f.lower().endswith(".m3u"):
@@ -196,6 +219,8 @@ def render_report(plan: IncompletePlan) -> str:
     out += [f"- `{n}` — {len(tr)} pistas contiguas" for n, tr in plan.rebuildable.items()] or [
         "- (ninguno)"
     ]
+    out += ["", f"## CHD vacíos o corruptos eliminados ({len(plan.bad_chds)})", ""]
+    out += [f"- `{p}` — {why}" for p, why in plan.bad_chds] or ["- (ninguno)"]
     out += ["", f"## Listas .m3u rotas eliminadas ({len(plan.broken_m3u)})", ""]
     out += [f"- `{m}`" for m, _ in plan.broken_m3u] or ["- (ninguna)"]
     out += ["", f"## Pistas huérfanas eliminadas ({len(plan.orphan_tracks)})", ""]
@@ -205,7 +230,62 @@ def render_report(plan: IncompletePlan) -> str:
 
 def plan_for(fs: LibraryFS) -> IncompletePlan:
     """Plan sobre cualquier biblioteca (local o consola por ADB) detrás de ``LibraryFS``."""
-    return plan_incomplete(fs.list_files(), fs.read_text)
+    return plan_incomplete(fs.list_files(), fs.read_text, fs.read_head)
+
+
+def _track_no(path: str) -> int:
+    return int(re.search(r"Track (\d+)", posixpath.basename(path)).group(1))
+
+
+def build_cue(names: list[str], mode: int) -> str:
+    """``.cue`` para pistas ``.bin`` sueltas: la 1.ª de datos (``mode`` 1 o 2), el resto audio.
+
+    ponytail: las pistas de audio llevan la convención Redump (``INDEX 00 00:00:00`` +
+    ``INDEX 01 00:02:00``, 2 s de pregap dentro del archivo); si algún disco tuviera otro pregap el
+    audio sonaría desfasado, los datos no. Mejora: leer el pregap real de un DAT Redump.
+    """
+    out: list[str] = []
+    for i, name in enumerate(names, 1):
+        out.append(f'FILE "{name}" BINARY')
+        if i == 1:
+            out += [f"  TRACK 01 MODE{mode}/2352", "    INDEX 01 00:00:00"]
+        else:
+            out += [f"  TRACK {i:02d} AUDIO", "    INDEX 00 00:00:00", "    INDEX 01 00:02:00"]
+    return "\n".join(out) + "\n"
+
+
+def _data_mode(sector: bytes) -> int | None:
+    """Modo (1 o 2) de un sector de datos de 2352 bytes; None si no empieza con la sync CD-ROM."""
+    ok = len(sector) >= 16 and sector[:12] == b"\x00" + b"\xff" * 10 + b"\x00"
+    return sector[15] if ok and sector[15] in (1, 2) else None
+
+
+def _is_psx(path: str) -> bool:
+    """La regla «datos + audio» de ``build_cue`` solo vale en PSX; un GD-ROM de Dreamcast, por
+    ejemplo, tiene datos también en la pista 3 y un .cue así lo estropearía."""
+    return "psx" in (part.lower() for part in posixpath.dirname(path).split("/"))
+
+
+def apply_repairs(fs: LibraryFS, plan: IncompletePlan) -> tuple[int, int]:
+    """Repara sin borrar nada: mueve pistas junto a su ``.cue`` y crea los ``.cue`` que faltan.
+
+    Devuelve ``(pistas movidas, .cue creados)``. Un juego cuya 1.ª pista no es un sector de datos
+    reconocible se deja como está (no se inventa un ``.cue`` con un modo adivinado).
+    """
+    for src, dst in plan.repairs:
+        fs.move(src, dst)
+    created = 0
+    for name, tracks in plan.rebuildable.items():
+        tracks = sorted(tracks, key=_track_no)
+        if not _is_psx(tracks[0]):
+            continue
+        mode = _data_mode(fs.read_head(tracks[0], 16))
+        if mode is None:
+            continue
+        cue = posixpath.join(posixpath.dirname(tracks[0]), f"{name}.cue")
+        fs.write_text(cue, build_cue([posixpath.basename(t) for t in tracks], mode))
+        created += 1
+    return len(plan.repairs), created
 
 
 def discard_plan(fs: LibraryFS, plan: IncompletePlan) -> int:
@@ -247,6 +327,7 @@ def plan_to_issues(plan: IncompletePlan) -> list[dict]:
                 "missing_bins": s.missing[:5],
                 "action": f"{action} (faltan {len(s.missing)})",
                 "removable": not s.recoverable,
+                "repairable": s.recoverable,
             }
         )
     for name, tracks in plan.rebuildable.items():
@@ -259,6 +340,19 @@ def plan_to_issues(plan: IncompletePlan) -> list[dict]:
                 "platform": None,
                 "action": f"Completo ({len(tracks)} pistas) pero sin .cue: se conserva",
                 "removable": False,
+                "repairable": _is_psx(tracks[0]),
+            }
+        )
+    for chd, why in plan.bad_chds:
+        issues.append(
+            {
+                "type": "bad_chd",
+                "severity": "error",
+                "file": posixpath.basename(chd),
+                "path": chd,
+                "platform": None,
+                "action": f"CHD inservible: {why}",
+                "removable": True,
             }
         )
     for m3u, missing in plan.broken_m3u:

@@ -21,6 +21,12 @@ class LibraryFS(Protocol):
 
     def discard(self, rel: str) -> None: ...
 
+    def read_head(self, rel: str, n: int) -> bytes: ...
+
+    def write_text(self, rel: str, text: str) -> None: ...
+
+    def move(self, src: str, dst: str) -> None: ...
+
 
 class LocalLibraryFS:
     def __init__(self, root: Path):
@@ -39,6 +45,19 @@ class LocalLibraryFS:
 
     def discard(self, rel: str) -> None:
         discard_to_trash(self.root / rel)
+
+    def read_head(self, rel: str, n: int) -> bytes:
+        with (self.root / rel).open("rb") as f:
+            return f.read(n)
+
+    def write_text(self, rel: str, text: str) -> None:
+        with (self.root / rel).open("x", encoding="utf-8", newline="\n") as f:  # "x": no pisa
+            f.write(text)
+
+    def move(self, src: str, dst: str) -> None:
+        if (self.root / dst).exists():
+            raise FileExistsError(dst)
+        (self.root / src).rename(self.root / dst)
 
 
 class AdbLibraryFS:
@@ -64,3 +83,12 @@ class AdbLibraryFS:
 
     def discard(self, rel: str) -> None:
         self.transport.discard(self._abs(rel))
+
+    def read_head(self, rel: str, n: int) -> bytes:
+        return self.transport.read_head(self._abs(rel), n) or b""
+
+    def write_text(self, rel: str, text: str) -> None:
+        self.transport.write_text(self._abs(rel), text)
+
+    def move(self, src: str, dst: str) -> None:
+        self.transport.move(self._abs(src), self._abs(dst))

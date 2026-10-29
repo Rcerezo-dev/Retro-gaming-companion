@@ -92,7 +92,7 @@ def test_directory_roundtrip_moves_only_what_the_plan_removes(tmp_path):
     from rom_manager.services.library_fs import LocalLibraryFS
 
     (tmp_path / "K (Europe).cue").write_text(_cue("K (Europe) (Track 1).bin"))
-    (tmp_path / "L (USA).chd").write_bytes(b"x")
+    (tmp_path / "L (USA).chd").write_bytes(_chd_header().ljust(600, bytes(1)))
     (tmp_path / "M (Track 4).bin").write_bytes(b"x")
     fs = LocalLibraryFS(tmp_path)
     plan = plan_for(fs)
@@ -100,3 +100,80 @@ def test_directory_roundtrip_moves_only_what_the_plan_removes(tmp_path):
     assert (tmp_path / "L (USA).chd").exists()
     assert not (tmp_path / "K (Europe).cue").exists()
     assert (tmp_path / "_descartados" / "M (Track 4).bin").exists()
+
+
+# ── PRUNE-INCOMPLETE-1d: CHD inservibles, reparación y .cue regenerados ──────────────────────
+
+
+def _chd_header(*, size_ok: bool = True, logical: int = 1000) -> bytes:
+    h = bytearray(124)
+    h[:8] = b"MComprHD"
+    h[8:12] = (124).to_bytes(4, "big")
+    h[12:16] = (5).to_bytes(4, "big")
+    h[32:40] = logical.to_bytes(8, "big")
+    h[40:48] = (200 if size_ok else 10_000).to_bytes(8, "big")
+    h[48:56] = (300 if size_ok else 10_000).to_bytes(8, "big")
+    return bytes(h)
+
+
+def test_bad_chds_are_detected_and_removed():
+    heads = {
+        "ok.chd": _chd_header(),
+        "blank.chd": bytes(124),
+        "cut.chd": _chd_header(size_ok=False),
+        "empty.chd": b"",
+    }
+    sizes = {"ok.chd": 5000, "blank.chd": 5000, "cut.chd": 5000, "empty.chd": 0}
+    plan = plan_incomplete(sizes, lambda p: "", lambda p, n: heads[p])
+    assert {p for p, _ in plan.bad_chds} == {"blank.chd", "cut.chd", "empty.chd"}
+    assert "ok.chd" not in plan.to_remove and "blank.chd" in plan.to_remove
+
+
+def test_repair_moves_track_next_to_its_cue_and_never_overwrites():
+    plan = _plan({"Dir/G.cue": _cue("G (Track 1).bin"), "G (Track 1).bin": ""})
+    assert plan.repairs == [("G (Track 1).bin", "Dir/G (Track 1).bin")]
+
+
+def test_apply_repairs_moves_and_rebuilds_cue(tmp_path):
+    from rom_manager.services.incomplete_sets_service import apply_repairs, plan_for
+    from rom_manager.services.library_fs import LocalLibraryFS
+
+    (tmp_path / "Dir").mkdir()
+    (tmp_path / "psx").mkdir()
+    (tmp_path / "Dir" / "G.cue").write_text(_cue("G (Track 1).bin"))
+    (tmp_path / "G (Track 1).bin").write_bytes(b"x")
+    data = b"\x00" + b"\xff" * 10 + b"\x00" + b"\x00\x00\x00\x02" + b"\x00" * 20
+    for n in range(1, 11):
+        (tmp_path / "psx" / f"I (Track {n}).bin").write_bytes(data)
+    fs = LocalLibraryFS(tmp_path)
+
+    assert apply_repairs(fs, plan_for(fs)) == (1, 1)
+
+    assert (tmp_path / "Dir" / "G (Track 1).bin").exists()
+    cue = (tmp_path / "psx" / "I.cue").read_text()
+    assert "TRACK 01 MODE2/2352" in cue and "TRACK 10 AUDIO" in cue
+    assert cue.index("Track 2") < cue.index("Track 10")  # orden numérico, no alfabético
+    assert plan_for(fs).repairs == [] and plan_for(fs).rebuildable == {}
+
+
+def test_rebuild_is_skipped_when_first_track_is_not_a_data_sector(tmp_path):
+    from rom_manager.services.incomplete_sets_service import apply_repairs, plan_for
+    from rom_manager.services.library_fs import LocalLibraryFS
+
+    for n in (1, 2):
+        (tmp_path / f"J (Track {n}).bin").write_bytes(b"x" * 32)
+    fs = LocalLibraryFS(tmp_path)
+    assert apply_repairs(fs, plan_for(fs)) == (0, 0)
+    assert not (tmp_path / "J.cue").exists()
+
+
+def test_rebuild_is_only_for_psx(tmp_path):
+    from rom_manager.services.incomplete_sets_service import apply_repairs, plan_for
+    from rom_manager.services.library_fs import LocalLibraryFS
+
+    (tmp_path / "dreamcast").mkdir()
+    data = b"\x00" + b"\xff" * 10 + b"\x00" + b"\x00\x00\x00\x01" + b"\x00" * 20
+    for n in (1, 2, 3):
+        (tmp_path / "dreamcast" / f"K (Track {n}).bin").write_bytes(data)
+    fs = LocalLibraryFS(tmp_path)
+    assert apply_repairs(fs, plan_for(fs)) == (0, 0)
