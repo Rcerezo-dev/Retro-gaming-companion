@@ -176,4 +176,66 @@ def register_doctor(
     # ── GET /api/library-doctor ───────────────────────────────────────────────
     @router.get("/api/library-doctor")
     def get_library_doctor(ctx) -> None:
-        ctx._send_json(_handle_library_doctor(config, repository))
+        qs = getattr(ctx, "_qs", {})
+        fs, err = _library_fs_for(config, qs.get("context", ["pc"])[0], qs.get("root", [""])[0])
+        if err:
+            ctx._send_json({"error": err})
+            return
+        ctx._send_json(_handle_library_doctor(config, repository, fs=fs))
+
+    # ── POST /api/library-doctor/prune-incomplete (PRUNE-INCOMPLETE-1) ───────
+    @router.post("/api/library-doctor/prune-incomplete")
+    def post_prune_incomplete(ctx) -> None:
+        """Descarta (a ``_descartados/``) los sets incompletos. Recalcula el plan aquí: el
+        cliente solo dice sobre qué biblioteca actuar, nunca qué archivos retirar."""
+        from rom_manager.services.incomplete_sets_service import (
+            discard_plan,
+            plan_for,
+            render_report,
+        )
+        from rom_manager.services.library_fs import LocalLibraryFS
+
+        data = ctx._post_data
+        fs, err = _library_fs_for(config, data.get("context", "pc"), data.get("root", ""))
+        if err:
+            ctx._send_json({"error": err})
+            return
+        if fs is None:
+            if not config.library_root:
+                ctx._send_json({"error": "library_root no configurado"})
+                return
+            fs = LocalLibraryFS(Path(config.library_root))
+        try:
+            plan = plan_for(fs)
+            report = render_report(plan)
+            nbytes = plan.bytes_to_remove
+            n = discard_plan(fs, plan)
+        except (OSError, RuntimeError) as exc:
+            _logger.warning("prune-incomplete falló", exc_info=True)
+            ctx._send_json({"error": str(exc)})
+            return
+        ctx._send_json({"discarded": n, "bytes": nbytes, "report": report})
+
+
+def _library_fs_for(config: AppConfig, context: str, root: str):
+    """``(fs, error)`` para el contexto del selector de Herramientas.
+
+    PC → ``(None, None)`` (el handler usa ``library_root``). Consola: una ruta que empieza por
+    ``/`` es del dispositivo y se atiende por ADB; cualquier otra es una SD montada en el PC.
+    """
+    from rom_manager.services.library_fs import AdbLibraryFS, LocalLibraryFS
+    from rom_manager.sync.adb_transport import resolve_single_device_transport
+
+    if context != "android":
+        return None, None
+    root = (root or "").strip()
+    if not root:
+        return None, "Sin ruta de la consola: configúrala en Overview o Ajustes"
+    if root.startswith("/"):
+        transport = resolve_single_device_transport(config.adb)
+        if transport is None:
+            return None, "Consola no disponible: conéctala por USB con la depuración ADB activada"
+        return AdbLibraryFS(transport, root), None
+    if not Path(root).is_dir():
+        return None, f"La ruta {root} no existe (¿SD sin montar?)"
+    return LocalLibraryFS(Path(root)), None

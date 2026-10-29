@@ -3,10 +3,14 @@ from __future__ import annotations
 import logging
 import socket
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.web.handlers.sync_cloud import _handle_rclone_status
+
+if TYPE_CHECKING:
+    from rom_manager.services.library_fs import LibraryFS
 
 _logger = logging.getLogger(__name__)
 
@@ -252,10 +256,20 @@ def _handle_system_status(config: AppConfig) -> dict:
     }
 
 
-def _handle_library_doctor(config: AppConfig, repository: LibraryRepository) -> dict:
-    """Scan library_root for common issues: misplaced ROMs, incomplete CUE sets, empty dirs."""
-    import re as _re
+def _handle_library_doctor(
+    config: AppConfig, repository: LibraryRepository, *, fs: LibraryFS | None = None
+) -> dict:
+    """Scan library_root for common issues: misplaced ROMs, incomplete disc sets, empty dirs.
 
+    Con ``fs`` (consola por ADB o ruta montada) solo se analizan los sets de disco: las ROMs mal
+    ubicadas y las carpetas vacías dependen de la BD y del disco del PC.
+    """
+    from rom_manager.services.incomplete_sets_service import plan_for, plan_to_issues
+    from rom_manager.services.library_fs import LocalLibraryFS
+
+    if fs is not None:
+        issues = plan_to_issues(plan_for(fs))
+        return _doctor_result(issues)
     if not config.library_root:
         return {"error": "library_root no configurado"}
     root = Path(config.library_root)
@@ -289,27 +303,11 @@ def _handle_library_doctor(config: AppConfig, repository: LibraryRepository) -> 
     except Exception:
         _logger.warning("Escaneo de ROMs mal ubicadas falló en %s", root, exc_info=True)
 
-    # (b) Incomplete CUE sets — .cue file references .bin files that don't exist
-    _cue_bin_re = _re.compile(r'^\s*FILE\s+"?([^"]+)"?\s+BINARY', _re.IGNORECASE | _re.MULTILINE)
-    for _cue in root.rglob("*.cue"):
-        try:
-            _text = _cue.read_text(encoding="utf-8", errors="replace")
-            _refs = _cue_bin_re.findall(_text)
-            _missing = [r for r in _refs if not (_cue.parent / r).exists()]
-            if _missing:
-                issues.append(
-                    {
-                        "type": "incomplete_cue",
-                        "severity": "error",
-                        "file": _cue.name,
-                        "path": str(_cue),
-                        "platform": None,
-                        "missing_bins": _missing[:5],
-                        "action": f"Faltan {len(_missing)} .bin — set incompleto",
-                    }
-                )
-        except Exception:
-            _logger.debug("No se pudo analizar el .cue en el escaneo de salud", exc_info=True)
+    # (b) Sets de disco incompletos: .cue sin pistas, .m3u rotas, pistas huérfanas
+    try:
+        issues.extend(plan_to_issues(plan_for(LocalLibraryFS(root))))
+    except Exception:
+        _logger.warning("Análisis de sets de disco falló en %s", root, exc_info=True)
 
     # (c) Empty platform directories
     for _d in root.iterdir():
@@ -337,14 +335,18 @@ def _handle_library_doctor(config: AppConfig, repository: LibraryRepository) -> 
             except Exception:
                 _logger.debug("No se pudo inspeccionar el directorio %s", _d, exc_info=True)
 
+    return _doctor_result(issues)
+
+
+def _doctor_result(issues: list[dict]) -> dict:
     by_type: dict[str, int] = {}
     for iss in issues:
         by_type[iss["type"]] = by_type.get(iss["type"], 0) + 1
-
     return {
         "issues": issues[:200],
         "total": len(issues),
         "by_type": by_type,
+        "removable": sum(1 for i in issues if i.get("removable")),
     }
 
 
