@@ -1089,26 +1089,59 @@ export async function moveOrphanedSave(path, gameDir) {
 // ── Library Doctor ────────────────────────────────────────────────────────────
 let _doctorIssues = [];
 
+// PRUNE-INCOMPLETE-1: el Library Doctor sigue el selector de contexto de Herramientas.
+// En la consola, una ruta que empieza por «/» se atiende por ADB; si no, es una SD montada.
+async function _doctorScope() {
+  const context = localStorage.getItem('tools_context') === 'android' ? 'android' : 'pc';
+  if (context === 'pc') return { context, root: '' };
+  // ruta del dispositivo por ADB (empieza por «/»): tiene prioridad sobre la SD montada
+  const adbInput = document.getElementById('doctor-adb-root');
+  if (adbInput) {
+    if (!adbInput.dataset.loaded) {
+      if (!adbInput.value) adbInput.value = localStorage.getItem('doctor_adb_root') || '';
+      adbInput.dataset.loaded = '1';
+    }
+    localStorage.setItem('doctor_adb_root', adbInput.value.trim());
+  }
+  const adbRoot = (localStorage.getItem('doctor_adb_root') || '').trim();
+  if (adbRoot.startsWith('/')) return { context, root: adbRoot };
+  let cfg = {};
+  try { cfg = await apiFetch('/api/config'); } catch (e) { /* sin config: root vacío */ }
+  const root = cfg.anbernic_root || localStorage.getItem('anbernic_path')
+    || localStorage.getItem('cable_ab_path') || '';
+  return { context, root };
+}
+
 export async function doLibraryDoctor() {
   const el = document.getElementById('library-doctor-result');
   if (!el) return;
   el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Analizando…</p>';
 
   try {
-    const d = await apiFetch('/api/library-doctor');
+    const scope = await _doctorScope();
+    const d = await apiFetch('/api/library-doctor?context=' + scope.context
+      + '&root=' + encodeURIComponent(scope.root));
     if (d.error) { el.innerHTML = `<p class="error-msg">${_h(d.error)}</p>`; return; }
     if (d.total === 0) {
       el.innerHTML = '<p style="color:var(--c-teal);font-size:12px">✓ Biblioteca sana — no se encontraron problemas.</p>';
+      document.getElementById('btn-doctor-prune')?.classList.add('hidden');
+      document.getElementById('btn-doctor-repair')?.classList.add('hidden');
       return;
     }
 
     const sev = { error: 'var(--c-red)', warning: 'var(--c-orange)', info: '#555' };
-    const icon = { misplaced_rom: '📁', incomplete_cue: '✗', empty_dir: '📂' };
-    const label = { misplaced_rom: 'ROM mal ubicado', incomplete_cue: 'Set CUE incompleto', empty_dir: 'Carpeta vacía' };
+    const icon = { misplaced_rom: '📁', empty_dir: '📂', lost_game: '✗', leftover_set: '🗑', repairable_set: '🔧',
+      rebuildable_set: '🔧', bad_chd: '💥', broken_m3u: '📄', orphan_tracks: '🧩' };
+    const label = { misplaced_rom: 'ROM mal ubicado', empty_dir: 'Carpeta vacía',
+      lost_game: 'Juego que no funciona', leftover_set: 'Resto de un juego que sí funciona',
+      repairable_set: 'Set reparable (se conserva)', rebuildable_set: 'Completo sin .cue (se conserva)',
+      broken_m3u: 'Lista .m3u rota', orphan_tracks: 'Pistas sueltas', bad_chd: 'CHD vacío o corrupto' };
+    const sevByType = { misplaced_rom: 'warning', empty_dir: 'info', lost_game: 'error', leftover_set: 'warning',
+      repairable_set: 'info', rebuildable_set: 'info', broken_m3u: 'warning', orphan_tracks: 'warning', bad_chd: 'error' };
 
     let html = `<div style="margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap;font-size:12px">`;
     for (const [type, count] of Object.entries(d.by_type || {})) {
-      const s = sev[{misplaced_rom:'warning',incomplete_cue:'error',empty_dir:'info'}[type]||'info'];
+      const s = sev[sevByType[type] || 'info'];
       html += `<span style="color:${s}">${icon[type]||'·'} ${count} ${label[type]||type}</span>`;
     }
     html += `</div>`;
@@ -1144,8 +1177,66 @@ export async function doLibraryDoctor() {
     const hasActionable = d.issues.some(iss => iss.type === 'misplaced_rom' || iss.type === 'empty_dir');
     const resolveBtn = document.getElementById('btn-doctor-resolve-all');
     if (resolveBtn) { resolveBtn.classList.toggle('hidden', !hasActionable); }
+    const pruneBtn = document.getElementById('btn-doctor-prune');
+    if (pruneBtn) {
+      pruneBtn.classList.toggle('hidden', !(d.removable > 0));
+      pruneBtn.textContent = `🧹 Retirar incompletos (${d.removable})`;
+    }
+    const repairBtn = document.getElementById('btn-doctor-repair');
+    if (repairBtn) {
+      repairBtn.classList.toggle('hidden', !(d.repairable > 0));
+      repairBtn.textContent = `🔧 Reparar sets (${d.repairable})`;
+    }
   } catch(e) {
     el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
+  }
+}
+
+export async function doctorPruneIncomplete() {
+  const scope = await _doctorScope();
+  const where = scope.context === 'android' ? `la consola (${scope.root})` : 'la biblioteca del PC';
+  if (!confirm(`¿Retirar los sets incompletos de ${where}?
+
+Se mueven a _descartados/ (no se borran de golpe) y se descarga la lista de juegos que no funcionaban. Lo reparable se conserva.`)) return;
+
+  const btn = document.getElementById('btn-doctor-prune');
+  if (btn) btn.disabled = true;
+  try {
+    const d = await apiPost('/api/library-doctor/prune-incomplete', scope);
+    if (d.error) { showToast('Error: ' + d.error, 'err'); return; }
+    showToast(`✓ ${d.discarded} archivos retirados (${(d.bytes / 1e9).toFixed(2)} GB)`, 'ok');
+    const blob = new Blob([d.report], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `juegos_eliminados_${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    await doLibraryDoctor();
+  } catch (e) {
+    showToast('Error: ' + e.message, 'err');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+export async function doctorRepairIncomplete() {
+  const scope = await _doctorScope();
+  const where = scope.context === 'android' ? `la consola (${scope.root})` : 'la biblioteca del PC';
+  if (!confirm(`¿Reparar los sets de ${where}?
+
+Mueve las pistas que faltan junto a su .cue y crea los .cue que han desaparecido. No se borra ni se sobrescribe nada.`)) return;
+
+  const btn = document.getElementById('btn-doctor-repair');
+  if (btn) btn.disabled = true;
+  try {
+    const d = await apiPost('/api/library-doctor/repair-incomplete', scope);
+    if (d.error) { showToast('Error: ' + d.error, 'err'); return; }
+    showToast(`✓ ${d.moved} pistas movidas, ${d.cues} .cue creados`, 'ok');
+    await doLibraryDoctor();
+  } catch (e) {
+    showToast('Error: ' + e.message, 'err');
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 

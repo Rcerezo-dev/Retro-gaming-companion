@@ -199,6 +199,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--apply", action="store_true", help="With --mismatched: write the fixes (backup first)."
     )
 
+    prune_parser = subparsers.add_parser(
+        "prune-incomplete",
+        help="PRUNE-INCOMPLETE-1: retira sets de disco incompletos (.cue sin sus pistas, .m3u "
+        "rotas, pistas huérfanas) y escribe la lista de juegos que no funcionaban.",
+    )
+    prune_parser.add_argument("directory", type=Path, help="Carpeta de la plataforma (p. ej. psx).")
+    prune_parser.add_argument(
+        "--apply", action="store_true", help="Mover a _descartados/ y escribir el informe."
+    )
+
     scrape_parser = subparsers.add_parser(
         "scrape",
         help="Fetch metadata (title, genre, box art) from ScreenScraper.fr for unscraped ROMs.",
@@ -1079,6 +1089,29 @@ def main(argv: list[str] | None = None) -> int:
         print("Detecting platforms from folder names…")
         updated = repository.backfill_platforms(detect_platform)
         print(f"Updated: {updated} games")
+        return 0
+
+    if args.command == "prune-incomplete":
+        from rom_manager.services.incomplete_sets_service import (
+            discard_plan,
+            plan_for,
+            render_report,
+        )
+        from rom_manager.services.library_fs import LocalLibraryFS
+
+        fs = LocalLibraryFS(args.directory)
+        plan = plan_for(fs)
+        report = render_report(plan)
+        print(report)
+        print(f"{len(plan.to_remove)} archivos a retirar.")
+        if not args.apply:
+            print("DRY RUN - nothing moved. Pass --apply to discard.")
+            return 0
+        n = discard_plan(fs, plan)
+        report_path = args.directory / "_descartados" / "informe_incompletos.md"
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(report, encoding="utf-8")
+        print(f"Descartados: {n}. Informe: {report_path}")
         return 0
 
     if args.command == "scrape":

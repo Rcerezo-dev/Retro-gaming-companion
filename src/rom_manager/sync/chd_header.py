@@ -34,6 +34,25 @@ def chd_v5_raw_sha1(header: bytes) -> str | None:
     return raw.hex()
 
 
+def chd_problem(header: bytes, size: int) -> str | None:
+    """Motivo por el que un ``.chd`` es inservible, o None si la cabecera parece sana.
+
+    Solo mira la cabecera (un v3/v4 no se juzga más allá de la firma): vacío, sin firma
+    ``MComprHD`` (p. ej. en blanco) o con los offsets del mapa/metadatos fuera del fichero (truncado).
+    """
+    if size == 0:
+        return "vacío (0 bytes)"
+    if header[:8] != _CHD_TAG:
+        return "cabecera inválida (no es un CHD)"
+    if len(header) < CHD_V5_HEADER_SIZE or int.from_bytes(header[12:16], "big") != 5:
+        return None
+    if int.from_bytes(header[32:40], "big") == 0:
+        return "sin datos (tamaño lógico 0)"
+    if max(int.from_bytes(header[40:48], "big"), int.from_bytes(header[48:56], "big")) >= size:
+        return "truncado (mapa o metadatos fuera del fichero)"
+    return None
+
+
 def read_chd_raw_sha1(path: Path) -> str | None:
     """Igual que :func:`chd_v5_raw_sha1` sobre un fichero local; None si no se puede leer."""
     try:

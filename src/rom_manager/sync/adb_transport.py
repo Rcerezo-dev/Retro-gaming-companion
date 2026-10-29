@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import shlex
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -214,6 +215,28 @@ class AdbTransport:
         self._shell(f"rm -f {shlex.quote(android_path)}")
         if self.file_exists(android_path):
             raise RuntimeError(f"No se pudo borrar {android_path} en el dispositivo")
+
+    def read_text(self, android_path: str, *, timeout: int = 30) -> str:
+        """Contenido de un archivo de texto pequeño (``.cue``, ``.m3u``) del dispositivo."""
+        return self._shell(f"cat {shlex.quote(android_path)}", timeout=timeout)
+
+    def discard(self, android_path: str) -> str:
+        """Espejo de ``utils.trash.discard_to_trash``: mueve el archivo a ``_descartados/`` junto
+        a él (sufijo numérico si ya existe uno igual) y devuelve la ruta nueva. No lo borra."""
+        p = PurePosixPath(android_path)
+        if TRASH_DIR_NAME in p.parts[:-1]:
+            return android_path
+        trash = str(p.parent / TRASH_DIR_NAME)
+        dest = f"{trash}/{p.name}"
+        n = 1
+        while self.file_exists(dest):
+            dest = f"{trash}/{p.stem} ({n}){p.suffix}"
+            n += 1
+        self._shell(f"mkdir -p {shlex.quote(trash)}")
+        self._shell(f"mv {shlex.quote(android_path)} {shlex.quote(dest)}")
+        if self.file_exists(android_path) or not self.file_exists(dest):
+            raise RuntimeError(f"No se pudo descartar {android_path} en el dispositivo")
+        return dest
 
     def _trash_dirs(self, roots: list[str] | None) -> set[str]:
         if roots is None:
@@ -444,12 +467,30 @@ class AdbTransport:
         None si no es un CHD v5 o no se puede leer."""
         from rom_manager.sync.chd_header import CHD_V5_HEADER_SIZE, chd_v5_raw_sha1
 
-        r = self._run(
-            "exec-out",
-            f"head -c {CHD_V5_HEADER_SIZE} {shlex.quote(android_path)}",
-            timeout=timeout,
-        )
-        return chd_v5_raw_sha1(r.stdout) if r.returncode == 0 else None
+        head = self.read_head(android_path, CHD_V5_HEADER_SIZE, timeout=timeout)
+        return chd_v5_raw_sha1(head) if head is not None else None
+
+    def read_head(self, android_path: str, n: int, *, timeout: int = 30) -> bytes | None:
+        """Primeros ``n`` bytes de un archivo del dispositivo; None si no se puede leer."""
+        r = self._run("exec-out", f"head -c {n} {shlex.quote(android_path)}", timeout=timeout)
+        return r.stdout if r.returncode == 0 else None
+
+    def write_text(self, android_path: str, text: str) -> None:
+        """Crea un archivo de texto pequeño (``.cue``); no sobrescribe uno existente."""
+        if self.file_exists(android_path):
+            raise FileExistsError(android_path)
+        with tempfile.TemporaryDirectory() as d:
+            src = Path(d) / "f"
+            src.write_text(text, encoding="utf-8", newline="\n")
+            self.push(src, android_path)
+
+    def move(self, src: str, dst: str) -> None:
+        """``mv`` dentro del dispositivo; nunca pisa un destino existente."""
+        if self.file_exists(dst):
+            raise FileExistsError(dst)
+        self._shell(f"mv {shlex.quote(src)} {shlex.quote(dst)}")
+        if self.file_exists(src) or not self.file_exists(dst):
+            raise RuntimeError(f"No se pudo mover {src} en el dispositivo")
 
     # ── transfer ──────────────────────────────────────────────────────────────
 

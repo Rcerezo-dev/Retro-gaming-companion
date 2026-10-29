@@ -48,11 +48,22 @@
   <!-- ── Library Doctor ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Library Doctor</h3>
-    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Analiza tu biblioteca y detecta: ROMs fuera de su carpeta de plataforma, sets CUE+BIN incompletos y carpetas vacías.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Analiza tu biblioteca y detecta: ROMs fuera de su carpeta de plataforma, sets de disco incompletos (juegos que no funcionan) y carpetas vacías. Actúa sobre el <strong>contexto</strong> de arriba: PC o Consola Android (por ADB).</p>
+    <div class="actions-row" style="margin-bottom:8px">
+      <input id="doctor-adb-root" type="text" style="flex:1;min-width:260px"
+             placeholder="Consola por ADB (opcional): /storage/XXXX-XXXX/ROMs — vacío = ruta de la SD de Ajustes"
+             title="Solo en contexto Consola Android. Una ruta que empieza por / se lee directamente del dispositivo por USB (ADB)">
+    </div>
     <div class="actions-row">
       <button class="btn primary" onclick="doLibraryDoctor()">&#x1F489; Analizar biblioteca</button>
       <button class="btn hidden" id="btn-doctor-resolve-all"
               onclick="doctorResolveAll()">&#x2714; Resolver todos</button>
+      <button class="btn hidden" id="btn-doctor-repair"
+              title="Mueve junto a su .cue las pistas que están en otra carpeta y crea el .cue de los juegos completos que lo perdieron. No borra ni sobrescribe nada."
+              onclick="doctorRepairIncomplete()">&#x1F527; Reparar sets</button>
+      <button class="btn danger hidden" id="btn-doctor-prune"
+              title="Mueve a _descartados/ los sets de disco incompletos, las listas .m3u rotas y las pistas sueltas, y descarga la lista de juegos que no funcionaban. Lo reparable no se toca."
+              onclick="doctorPruneIncomplete()">&#x1F9F9; Retirar incompletos</button>
     </div>
     <div id="library-doctor-result" style="margin-top:12px"></div>
   </div>
