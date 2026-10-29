@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import posixpath
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -282,7 +282,14 @@ def apply_repairs(fs: LibraryFS, plan: IncompletePlan) -> tuple[int, int]:
         mode = _data_mode(fs.read_head(tracks[0], 16))
         if mode is None:
             continue
-        cue = posixpath.join(posixpath.dirname(tracks[0]), f"{name}.cue")
+        # las pistas pueden estar repartidas (p. ej. la 1 suelta y el resto en la subcarpeta):
+        # se reúnen en la carpeta que ya tiene la mayoría antes de crear el .cue
+        home = Counter(posixpath.dirname(t) for t in tracks).most_common(1)[0][0]
+        for i, t in enumerate(tracks):
+            if posixpath.dirname(t) != home:
+                tracks[i] = posixpath.join(home, posixpath.basename(t))
+                fs.move(t, tracks[i])
+        cue = posixpath.join(home, f"{name}.cue")
         fs.write_text(cue, build_cue([posixpath.basename(t) for t in tracks], mode))
         created += 1
     return len(plan.repairs), created

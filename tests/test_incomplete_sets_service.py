@@ -177,3 +177,21 @@ def test_rebuild_is_only_for_psx(tmp_path):
         (tmp_path / "dreamcast" / f"K (Track {n}).bin").write_bytes(data)
     fs = LocalLibraryFS(tmp_path)
     assert apply_repairs(fs, plan_for(fs)) == (0, 0)
+
+
+def test_rebuild_gathers_tracks_split_across_folders(tmp_path):
+    from rom_manager.services.incomplete_sets_service import apply_repairs, plan_for
+    from rom_manager.services.library_fs import LocalLibraryFS
+
+    (tmp_path / "psx" / "L").mkdir(parents=True)
+    data = b"\x00" + b"\xff" * 10 + b"\x00" + b"\x00\x00\x00\x02" + b"\x00" * 20
+    (tmp_path / "psx" / "L (Track 1).bin").write_bytes(data)
+    for n in (2, 3):
+        (tmp_path / "psx" / "L" / f"L (Track {n}).bin").write_bytes(data)
+    fs = LocalLibraryFS(tmp_path)
+
+    assert apply_repairs(fs, plan_for(fs)) == (0, 1)
+
+    assert (tmp_path / "psx" / "L" / "L.cue").exists()
+    assert (tmp_path / "psx" / "L" / "L (Track 1).bin").exists()
+    assert plan_for(fs).sets == []
