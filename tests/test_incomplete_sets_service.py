@@ -195,3 +195,13 @@ def test_rebuild_gathers_tracks_split_across_folders(tmp_path):
     assert (tmp_path / "psx" / "L" / "L.cue").exists()
     assert (tmp_path / "psx" / "L" / "L (Track 1).bin").exists()
     assert plan_for(fs).sets == []
+
+
+def test_gdi_tracks_are_neither_orphans_nor_rebuildable():
+    q = chr(34)
+    rows = ["3"] + [f"{n} 0 4 2352 {q}M (Track {n}).bin{q} 0" for n in (1, 2, 3)]
+    gdi = chr(10).join(rows) + chr(10)
+    plan = _plan(
+        {"D/M.gdi": gdi, "D/M (Track 1).bin": "", "D/M (Track 2).bin": "", "D/M (Track 3).bin": ""}
+    )
+    assert plan.orphan_tracks == [] and plan.rebuildable == {} and plan.to_remove == []

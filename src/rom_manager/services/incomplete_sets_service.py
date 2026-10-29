@@ -11,6 +11,8 @@ Reglas (una ruta es relativa a la carpeta de la plataforma, separador ``/``):
 * Si lo que falta existe en otra carpeta, el set es *reparable*: NO se descarta, se informa.
 * Un ``.m3u`` con alguna entrada inexistente es una lista rota.
 * Una pista ``(Track N).bin`` que ningún ``.cue`` referencia es un resto huérfano.
+* Un ``.gdi`` (Dreamcast) es otro descriptor de pistas: lo que nombra nunca se retira ni se
+  reconstruye, esté el set completo o no.
 * Un ``.chd`` vacío, sin firma o truncado (``chd_problem``) es inservible y se retira.
 * Lo reparable no se descarta: ``apply_repairs`` mueve las pistas encontradas junto a su ``.cue``
   y regenera el ``.cue`` de los juegos completos que lo han perdido.
@@ -35,6 +37,7 @@ from rom_manager.sync.chd_header import CHD_V5_HEADER_SIZE, chd_problem
 _TRACK_BIN = re.compile(r" \(Track \d+\)\.bin$", re.IGNORECASE)
 _FILE_LINE = re.compile(r'^\s*FILE\s+(?:"([^"]+)"|(\S+))', re.IGNORECASE)
 _TITLE_REGION = re.compile(r"^(.*?)\s*(\([^)]*\))")
+_GDI_LINE = re.compile(r'^\s*\d+\s+\d+\s+\d+\s+\d+\s+(?:"([^"]+)"|(\S+))')
 _PLAYABLE_EXT = (".chd", ".iso", ".pbp", ".ecm", ".img", ".mdf")
 
 
@@ -127,6 +130,16 @@ def plan_incomplete(
             complete_claimed.update(present)
         else:
             pending.append((f, present, missing or ["(el .cue no referencia ningún archivo)"]))
+
+    for f in sorted(files):
+        if f.lower().endswith(".gdi"):
+            folder = posixpath.dirname(f)
+            for line in read_text(f).splitlines():
+                m = _GDI_LINE.match(line)
+                name = m and (m.group(1) or m.group(2))
+                if name and posixpath.join(folder, name) in files:
+                    claimed.add(posixpath.join(folder, name))
+                    complete_claimed.add(posixpath.join(folder, name))
 
     playable_keys = {game_key(f) for f in files if f.lower().endswith(_PLAYABLE_EXT)}
     playable_keys |= {game_key(c) for c in complete_cues}
