@@ -535,3 +535,19 @@ Estado al dejarlo (2026-10-03): en la RG556 está instalado el release firmado d
 
 ---
 
+### SYNC-PCSX2-DIR-1 — El sync de Drive lee una carpeta de memory cards que PCSX2 del PC no usa (hallazgo 2026-10-31)
+
+**Síntoma:** al llevar la card PS2 fusionada al PC se vio que hay dos carpetas de cards distintas, con contenidos distintos.
+
+**Evidencia (verificada en el PC real):**
+- PCSX2 del PC escribe sus cards en `E:\RetroVault\ROMS\saves\ps2` — `C:\Users\rammu\Documents\PCSX2\inis\PCSX2.ini:29` (`MemoryCards =`). Ahí `Mcd001.ps2` es la de **14 partidas** (md5 `c229c932…`, 2025-11-21).
+- El sync de saves a Drive (`gdrive:/RetroSync/saves/pcsx2`) lee `C:\Users\rammu\Documents\PCSX2\memcards` — `config.toml:68` (`local_dir`, fichero local no versionado). Esa carpeta tiene su propia `Mcd001.ps2` (md5 `7735c454…`, 2026-10-05) y una carpeta `.stfolder` de Syncthing; PCSX2 no escribe en ella.
+- Consecuencia: lo jugado en PCSX2 del PC **no llega a Drive**, y lo que sube a Drive no es lo que PCSX2 usa. Riesgo directo de pérdida de progreso (pilar 3).
+
+**Causa raíz a confirmar:** `local_dir` de la fuente PCSX2 quedó apuntando a la ruta por defecto de PCSX2 (`Documents\PCSX2\memcards`) tras mover la biblioteca a `E:\RetroVault` (la config del emulador sí se cambió, la fuente de sync no). Falta ver si el origen es `config.toml` solo o también `wizard.py`/`config.py` (valor por defecto).
+
+| ID | Task | Estado |
+|----|------|--------|
+| SYNC-PCSX2-DIR-1a | Confirmar la causa raíz con `grep` en `wizard.py`/`config.py` y decidir una única carpeta de cards PS2 en el PC (la que usa PCSX2 o la de Drive) | pendiente |
+| SYNC-PCSX2-DIR-1b | Unir ambas carpetas **sin pisar nada**: la de 14 partidas, la de 6 de `Documents` y la fusionada de 22 (`Mcd001_fusion_22partidas.ps2`, ya copiada junto a la card actual y elegida como ranura 1 el 2026-10-31) no se sustituyen, se fusionan con `mymcplus` como en ANDROID-EMU-SAVES-ACCESS-1j | pendiente |
+| SYNC-PCSX2-DIR-1c | Aviso en la pestaña Sync si `local_dir` de una fuente no coincide con la carpeta que usa el emulador (detectable leyendo su `.ini`) | pendiente |
