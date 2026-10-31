@@ -28,3 +28,15 @@ Sesión real con una Deck por SSH (`deck@192.168.1.226`, clave `~/.ssh/id_deck`)
 - `sudo` en la Deck pide contraseña: nada que requiera instalar paquetes del sistema.
 - Rendimiento aplicado (sin medir): Vulkan, 2x, parches de pantalla ancha y sin entrelazado, FPS en pantalla.
 - Juegos nativos (p. ej. Dark Cloud 2 con `DC2Launcher`): `Saves/` vacía, formato desconocido y no intercambiable con la card PS2; sincronizarlos solo cuando se hayan jugado una vez en el PC.
+
+### Diseño de DECK-SYNC-1 (2026-10-31, sobre el sync real leído con /sync-design)
+
+**Topología:** el PC es el centro (`gdrive:/RetroSync/saves/…` por rclone; Anbernic por ADB). La Deck es un cliente más por SSH; no hay sync directa entre dispositivos y solo propaga cuando el PC está encendido y la Deck responde.
+
+1. **Un protocolo de transporte común.** `sync_saves()` está atado a `RcloneTransport` (`sync/save_syncer.py:77-93`, `_resolve_remote` en `:11-16`). Extraer un protocolo mínimo (`list_remote`, `upload`, `download`) que implementen rclone y un nuevo `SshTransport` — así la Deck reutiliza `decide()` (`sync/conflict_resolver.py:25-64`), la marca de `save_sync_log` (`sync/sync_log.py:100-135`), la guarda de 0 bytes (`save_syncer.py:189-196`) y los conflictos manuales, en vez de copiar el «gana el mtime» de Cable Sync. Es el cambio más grande y toca código que funciona: rama propia y tests con BD real.
+2. **Rutas de la Deck en configuración** (como `[[emulator_paths]]`): `~/Emulation/saves/pcsx2/saves`, Dolphin, DuckStation y RetroArch de EmuDeck (DECK-PATHS-1).
+3. **Seguridad:** reutilizar pre-flight de desvío de reloj (`sync_cable.py:352-370`), backup versionado previo (`saves_keep_n`), verificación por md5, y comprobar por SSH que el emulador no está abierto antes de escribir (en la sesión real PCSX2 sobrescribe su `.ini` y la card al cerrar). Tolerar que la Deck desaparezca a mitad de sync (se duerme y el Wi-Fi cae: ver «Hecho a mano 2026-10-30»).
+4. **Disparo:** manual primero; luego sondeo del puerto 22 al estilo del daemon ADB (`web/cable_sync_daemon.py:85-176`: 10 s de sondeo, 30 s de enfriamiento).
+5. **Memory cards PS2: nunca se resuelven solas.** Son un único archivo de 8 MB (`Mcd001.ps2`); «gana el más nuevo» pierde los saves del otro lado. La fusión real necesita `mymcplus`, dependencia externa que choca con la regla «solo stdlib» de `CLAUDE.md`. Primera versión: un conflicto de card guarda ambas versiones y avisa; la fusión queda como paso posterior fuera del runtime (como ANDROID-EMU-SAVES-ACCESS-1j).
+
+**Prerrequisitos** (en la rama `docs/sync-pcsx2-dir-1`, aún sin PR): `SYNC-PCSX2-DIR-1` y `CABLE-NEWEST-NO-CONFLICT-1` (con tres dispositivos los conflictos dejan de ser raros y la ruta cable hoy no los detecta).
