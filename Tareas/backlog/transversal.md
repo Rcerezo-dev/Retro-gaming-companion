@@ -339,3 +339,19 @@ Petición del usuario tras arreglar `PSX-CATALOG-MISSING-1`: "¿hay algo más qu
 **Contraste de confianza — plataformas con catálogo presente pero match parcial** (no urgente, probablemente hacks/traducciones legítimos, mismo patrón que `DUP-CROSSFMT-9`, sin verificar caso a caso): NES 73,0% (12.126), Game Boy 73,7% (5.042), SNES 53,0% (1.290) — las tres tienen datfile No-Intro real, así que el hueco no es "falta catálogo" sino contenido que genuinamente no está en el DAT oficial (bootlegs, hacks, traducciones, homebrew) | — | 🔵 sin verificar caso a caso, baja prioridad |
 
 ---
+
+### MISPLACED-WII-3DS-1 — `wii/` y `3ds/` contienen casi solo archivos de otras plataformas (hallazgo 2026-10-31)
+
+**Síntoma:** al buscar un juego de Wii y uno de 3DS en la biblioteca real (`E:\RetroVault\ROMS`) no estaban, y las carpetas están llenas de otra cosa. Mismo patrón que `GBA-MISPLACED-1`.
+
+**Evidencia (contado en el disco real, solo lectura):**
+- `wii/`: 243 ficheros sueltos y **solo 3 en formato Wii/GameCube** (`Fire Emblem - Path of Radiance (Europe)…iso`, `Fire Emblem - Radiant Dawn (USA)…iso`, `Metroid Prime Trilogy (USA).nkit.iso`). El resto: 51 zips, 31 `.md` (Mega Drive), 31 partes de ROMs arcade/Neo Geo (`017-c1.c1`, `017-m1.m1`, `089-c1.c1`, …), 20 `.bin`, 9 `.chd`. Subcarpetas con Mega Drive Virtual Console (`Gynoug`, `Phelios`, `Ristar`, `Rompers`).
+- `3ds/`: 187 entradas, **ningún** archivo `.3ds/.cia/.cci/.cxi/.3dsx`; 152 zips. **74 llevan marcas de dump de NES** (`(U) [!]`, `PRG0/PRG1`, `(E) [!]`: `Adventure Island II (U) [!].zip`, `Blaster Master (U) [!].zip`, los Zelda/Zelda II de NES…); 55 sí parecen 3DS (`Virtual Console`, `Legit CIA`, `New 3DS`).
+
+**Causa raíz:** sin investigar (solo recuento). Candidatos a revisar según la regla «investigar antes de arreglar»: el Inbox/`zip_router`, el detector de plataforma por extensión (`.md`, `.bin`, `.zip` son ambiguos) y las colecciones extraídas «por mayoría de miembros» (`web/zip_router.py`).
+
+| ID | Task | Estado |
+|----|------|--------|
+| MISPLACED-WII-3DS-1a | Confirmar la causa raíz: ¿qué proceso dejó los `.md`, las partes arcade y los NES en `wii/` y `3ds/`? Reproducir con un caso de la lista y citar archivo:línea | pendiente |
+| MISPLACED-WII-3DS-1b | Reubicar con `rommgr plan` primero (nunca `apply` sin plan): `.md` → `megadrive`, partes arcade → `arcade`/`neogeo`, NES → `nes`; sin sobrescribir, con registro en `file_operations` | pendiente |
+| MISPLACED-WII-3DS-1c | Prevención: que el Inbox no coloque un archivo en `wii/`/`3ds/` si ninguna de sus señales (extensión, cabecera, DAT) corresponde a esa plataforma | pendiente |

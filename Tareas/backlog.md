@@ -165,6 +165,7 @@ Secciones con alguna tarea sin ✅ (`pendiente`). Regenerar con `python scripts/
 | SAGE — Soporte para Retro Sage (recomendador NLP) | [ra-scraper-sage](backlog/ra-scraper-sage.md) | pendiente |
 | RA-LIVE — Progreso de logros en la ficha del juego (idea usuario 2026-09-22) | [ra-scraper-sage](backlog/ra-scraper-sage.md) | pendiente |
 | User actions (no code needed) | [transversal](backlog/transversal.md) | pendiente |
+| MISPLACED-WII-3DS-1 — `wii/` y `3ds/` casi sin juegos propios: Mega Drive, arcade y NES mezclados (hallazgo 2026-10-31) | [transversal](backlog/transversal.md) | pendiente |
 | GBA-MISPLACED-1 — Archivos de otras plataformas mal ubicados en `gba/` con metadatos corruptos (hallazgo 2026- | [transversal](backlog/transversal.md) | pendiente |
 | ARCADE-RENAME-BUG-1 — MAME/FBNeo no cargan ~2.766 ROMs de `arcade/` por nombre de archivo (hallazgo 2026-08-31 | [transversal](backlog/transversal.md) | pendiente |
 | LIBRARY-SYNC-STALE-1 — Biblioteca corregida el 08-30 (GBA/PSX/GameCube) nunca llegó a la Anbernic (hallazgo 20 | [transversal](backlog/transversal.md) | pendiente |
